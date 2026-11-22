@@ -59,8 +59,14 @@ static void move_entity(int32_t *x, int32_t *z, int32_t *vx, int32_t *vz,
     *vx = clamp_i32(*vx, -max_speed, max_speed);
     *vz = clamp_i32(*vz, -max_speed, max_speed);
     *x += *vx; *z += *vz;
-    *x = clamp_i32(*x, g->min_x + half, g->max_x - half);
-    *z = clamp_i32(*z, g->min_z + half, g->max_z - half);
+    if (*x < g->min_x + half || *x > g->max_x - half) {
+        *x = clamp_i32(*x, g->min_x + half, g->max_x - half);
+        *vx = 0;
+    }
+    if (*z < g->min_z + half || *z > g->max_z - half) {
+        *z = clamp_i32(*z, g->min_z + half, g->max_z - half);
+        *vz = 0;
+    }
     resolve_obstacles(old_x, old_z, x, z, vx, vz, half, g);
 }
 static void update_camera(GameState *g)
