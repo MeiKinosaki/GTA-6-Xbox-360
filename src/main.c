@@ -1,12 +1,13 @@
 /*
- * Grand Theft Auto 6 Xbox 360 — native demake bootstrap.
- * This is an early Xenon target smoke test, not gameplay code.
+ * Grand Theft Auto 6 Xbox 360 — XSDK native title bootstrap.
+ * Minimal first title used to validate direct XEX packaging.
  */
 
-volatile unsigned int gta6_bootstrap_marker = 0x47544136u;
+#include <xsdk/log.h>
 
-void gta6_x360_bootstrap(void)
+int main(void)
 {
-    /* Keep a visible side effect so the linker retains this function. */
-    gta6_bootstrap_marker ^= 0x00000001u;
+    xsdk_log_write("Grand Theft Auto 6 Xbox 360 — bootstrap started");
+    xsdk_log_write("Native demake foundation build");
+    return 0;
 }
