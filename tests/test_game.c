@@ -101,6 +101,21 @@ static void test_obstacle_validation(void)
     game_init(&game);
     assert(!game_add_obstacle(&game, &bad));
 }
+static void test_pedestrian_patrol_and_turnaround(void)
+{
+    GameState game;
+    int32_t initial_z;
+    uint32_t i;
+    game_init(&game);
+    assert(game.pedestrian_count == 2);
+    initial_z = game.pedestrians[0].z;
+    game_tick(&game, 0);
+    assert(game.pedestrians[0].z > initial_z);
+    for (i = 0; i < 1000; ++i) game_tick(&game, 0);
+    assert(game.pedestrians[0].z >= game.pedestrians[0].min_z);
+    assert(game.pedestrians[0].z <= game.pedestrians[0].max_z);
+    assert(game_validate(&game));
+}
 int main(void)
 {
     test_initial_state();
@@ -111,6 +126,7 @@ int main(void)
     test_obstacle_collision_stops_player();
     test_camera_follows_smoothly();
     test_obstacle_validation();
-    puts("Gameplay core tests: 8/8 passed");
+    test_pedestrian_patrol_and_turnaround();
+    puts("Gameplay core tests: 9/9 passed");
     return 0;
 }
