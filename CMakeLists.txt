@@ -1,7 +1,11 @@
 cmake_minimum_required(VERSION 3.25)
 project(gta6_x360 C)
 
-add_executable(gta6 src/main.c)
+add_executable(gta6
+    src/main.c
+    src/game.c
+)
+target_include_directories(gta6 PRIVATE include)
 set_target_properties(gta6 PROPERTIES C_STANDARD 17 C_EXTENSIONS ON)
 target_compile_options(gta6 PRIVATE -Wall -Wextra -Werror)
 
