@@ -84,7 +84,7 @@ void game_init(GameState *g)
     g->min_z = -50000; g->max_z = 50000;
     g->player.x = 0; g->player.z = 0;
     g->player.vx = 0; g->player.vz = 0; g->player.vehicle_index = -1;
-    g->vehicle_count = 2; g->obstacle_count = 0; g->simulation_ticks = 0;
+    g->vehicle_count = 2; g->obstacle_count = 0; g->pedestrian_count = 2; g->simulation_ticks = 0;
     g->camera.x = 0; g->camera.z = 0; g->camera.target_x = 0; g->camera.target_z = 0;
     for (i = 0; i < GAME_MAX_VEHICLES; ++i) {
         g->vehicles[i].x = 0; g->vehicles[i].z = 0;
@@ -97,12 +97,29 @@ void game_init(GameState *g)
     }
     g->vehicles[0].x = 4000;
     g->vehicles[1].x = -6000; g->vehicles[1].z = 2500;
+    for (i = 0; i < GAME_MAX_PEDESTRIANS; ++i) {
+        g->pedestrians[i].x = 0; g->pedestrians[i].z = 0;
+        g->pedestrians[i].min_z = 0; g->pedestrians[i].max_z = 0;
+        g->pedestrians[i].speed = 0; g->pedestrians[i].direction = 1;
+        g->pedestrians[i].active = 0;
+    }
+    g->pedestrians[0].x = 5000; g->pedestrians[0].z = -3000;
+    g->pedestrians[0].min_z = -5000; g->pedestrians[0].max_z = 5000;
+    g->pedestrians[0].speed = 12; g->pedestrians[0].active = 1;
+    g->pedestrians[1].x = -3500; g->pedestrians[1].z = 2000;
+    g->pedestrians[1].min_z = -1000; g->pedestrians[1].max_z = 4500;
+    g->pedestrians[1].speed = 9; g->pedestrians[1].direction = -1;
+    g->pedestrians[1].active = 1;
 }
 int game_add_obstacle(GameState *g, const GameObstacle *o)
 {
     if (!g || !o || g->obstacle_count >= GAME_MAX_OBSTACLES ||
         o->min_x >= o->max_x || o->min_z >= o->max_z) return 0;
     g->obstacles[g->obstacle_count++] = *o;
+    for (i = 0; i < g->pedestrian_count; ++i) {
+        const GamePedestrian *p = &g->pedestrians[i];
+        if (p->active && (p->min_z > p->max_z || p->z < p->min_z || p->z > p->max_z || p->speed < 0)) return 0;
+    }
     return 1;
 }
 int game_interact(GameState *g)
@@ -130,6 +147,17 @@ int game_interact(GameState *g)
     g->vehicles[(uint8_t)best].occupied = 1;
     return 1;
 }
+static void update_pedestrians(GameState *g)
+{
+    uint32_t i;
+    for (i = 0; i < g->pedestrian_count; ++i) {
+        GamePedestrian *p = &g->pedestrians[i];
+        if (!p->active || p->speed <= 0 || p->min_z >= p->max_z) continue;
+        p->z += p->speed * p->direction;
+        if (p->z >= p->max_z) { p->z = p->max_z; p->direction = -1; }
+        else if (p->z <= p->min_z) { p->z = p->min_z; p->direction = 1; }
+    }
+}
 void game_tick(GameState *g, const GameInput *input)
 {
     GameInput neutral = {0,0,0,0,0};
@@ -146,12 +174,14 @@ void game_tick(GameState *g, const GameInput *input)
             in, PLAYER_ACCEL, PLAYER_FRICTION, PLAYER_MAX_SPEED, PLAYER_HALF_SIZE, g);
     }
     update_camera(g);
+    update_pedestrians(g);
     ++g->simulation_ticks;
 }
 int game_validate(const GameState *g)
 {
     uint32_t i;
-    if (!g || g->vehicle_count > GAME_MAX_VEHICLES || g->obstacle_count > GAME_MAX_OBSTACLES) return 0;
+    if (!g || g->vehicle_count > GAME_MAX_VEHICLES || g->obstacle_count > GAME_MAX_OBSTACLES ||
+        g->pedestrian_count > GAME_MAX_PEDESTRIANS) return 0;
     if (g->player.x < g->min_x || g->player.x > g->max_x ||
         g->player.z < g->min_z || g->player.z > g->max_z) return 0;
     if (g->player.vehicle_index >= (int8_t)g->vehicle_count) return 0;
