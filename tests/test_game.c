@@ -1,0 +1,92 @@
+#include "gta6/game.h"
+#include <assert.h>
+#include <stdio.h>
+
+static void test_initial_state(void)
+{
+    GameState game;
+    game_init(&game);
+    assert(game_validate(&game));
+    assert(game.player.vehicle_index == -1);
+    assert(game.vehicle_count == 2);
+}
+
+static void test_player_movement_and_friction(void)
+{
+    GameState game;
+    GameInput input = {1, 0, 0, 0, 0};
+    int32_t moved;
+    game_init(&game);
+    game_tick(&game, &input);
+    moved = game.player.z;
+    assert(moved > 0);
+    input.forward = 0;
+    game_tick(&game, &input);
+    assert(game.player.vz < 55);
+    assert(game_validate(&game));
+}
+
+static void test_world_boundaries(void)
+{
+    GameState game;
+    GameInput input = {0, 0, 0, 1, 0};
+    game_init(&game);
+    game.player.x = game.max_x;
+    game_tick(&game, &input);
+    assert(game.player.x == game.max_x);
+    assert(game.player.vx == 0);
+    assert(game_validate(&game));
+}
+
+static void test_enter_drive_and_exit_vehicle(void)
+{
+    GameState game;
+    GameInput input = {0, 0, 0, 0, 1};
+    int32_t initial_z;
+    game_init(&game);
+    game.player.x = game.vehicles[0].x;
+    game.player.z = game.vehicles[0].z;
+
+    game_tick(&game, &input);
+    assert(game.player.vehicle_index == 0);
+    assert(game.vehicles[0].occupied);
+    assert(game_validate(&game));
+
+    input.interact_pressed = 0;
+    input.forward = 1;
+    initial_z = game.vehicles[0].z;
+    game_tick(&game, &input);
+    assert(game.vehicles[0].z > initial_z);
+    assert(game.player.z == game.vehicles[0].z);
+
+    input.forward = 0;
+    input.interact_pressed = 1;
+    game_tick(&game, &input);
+    assert(game.player.vehicle_index == -1);
+    assert(!game.vehicles[0].occupied);
+    assert(game.player.x == game.vehicles[0].x + 1200);
+    assert(game_validate(&game));
+}
+
+static void test_cannot_enter_distant_or_occupied_vehicle(void)
+{
+    GameState game;
+    game_init(&game);
+    assert(!game_interact(&game));
+    game.player.x = game.vehicles[0].x;
+    game.player.z = game.vehicles[0].z;
+    assert(game_interact(&game));
+    game.player.vehicle_index = -1;
+    assert(!game_interact(&game));
+}
+
+int main(void)
+{
+    test_initial_state();
+    test_player_movement_and_friction();
+    test_world_boundaries();
+    test_enter_drive_and_exit_vehicle();
+    test_cannot_enter_distant_or_occupied_vehicle();
+    puts("Gameplay core tests: 5/5 passed");
+    return 0;
+}
