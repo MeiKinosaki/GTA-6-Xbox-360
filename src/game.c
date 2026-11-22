@@ -128,10 +128,6 @@ int game_add_obstacle(GameState *g, const GameObstacle *o)
     if (!g || !o || g->obstacle_count >= GAME_MAX_OBSTACLES ||
         o->min_x >= o->max_x || o->min_z >= o->max_z) return 0;
     g->obstacles[g->obstacle_count++] = *o;
-    for (i = 0; i < g->traffic_count; ++i) {
-        const GameTrafficVehicle *v = &g->traffic[i];
-        if (v->active && (v->min_z > v->max_z || v->z < v->min_z || v->z > v->max_z || v->speed < 0)) return 0;
-    }
     return 1;
 }
 int game_interact(GameState *g)
@@ -260,6 +256,10 @@ int game_validate(const GameState *g)
     for (i = 0; i < g->pedestrian_count; ++i) {
         const GamePedestrian *p = &g->pedestrians[i];
         if (p->active && (p->min_z > p->max_z || p->z < p->min_z || p->z > p->max_z || p->speed < 0)) return 0;
+    }
+    for (i = 0; i < g->traffic_count; ++i) {
+        const GameTrafficVehicle *v = &g->traffic[i];
+        if (v->active && (v->min_z > v->max_z || v->z < v->min_z || v->z > v->max_z || v->speed < 0)) return 0;
     }
     return 1;
 }
