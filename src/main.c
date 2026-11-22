@@ -1,11 +1,12 @@
 /*
  * Grand Theft Auto 6 Xbox 360 — native demake bootstrap.
- *
- * This translation unit intentionally has no platform dependencies yet.
- * It is an early compiler smoke test, not a runnable Xbox 360 title.
+ * This is an early Xenon target smoke test, not gameplay code.
  */
 
-int gta6_x360_bootstrap(void)
+volatile unsigned int gta6_bootstrap_marker = 0x47544136u;
+
+void gta6_x360_bootstrap(void)
 {
-    return 0;
+    /* Keep a visible side effect so the linker retains this function. */
+    gta6_bootstrap_marker ^= 0x00000001u;
 }
