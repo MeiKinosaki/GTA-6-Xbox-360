@@ -143,15 +143,33 @@ int game_interact(GameState *g)
     g->vehicles[(uint8_t)best].occupied = 1;
     return 1;
 }
+static int pedestrian_path_blocked(const GameState *g, const GamePedestrian *p, int32_t next_z)
+{
+    uint32_t i;
+    for (i = 0; i < g->obstacle_count; ++i) {
+        const GameObstacle *o = &g->obstacles[i];
+        if (p->x >= o->min_x && p->x <= o->max_x &&
+            next_z >= o->min_z && next_z <= o->max_z) return 1;
+    }
+    return 0;
+}
 static void update_pedestrians(GameState *g)
 {
     uint32_t i;
     for (i = 0; i < g->pedestrian_count; ++i) {
         GamePedestrian *p = &g->pedestrians[i];
+        int32_t next_z;
         if (!p->active || p->speed <= 0 || p->min_z >= p->max_z) continue;
-        p->z += p->speed * p->direction;
-        if (p->z >= p->max_z) { p->z = p->max_z; p->direction = -1; }
-        else if (p->z <= p->min_z) { p->z = p->min_z; p->direction = 1; }
+        next_z = p->z + p->speed * p->direction;
+        if (next_z >= p->max_z) { next_z = p->max_z; p->direction = -1; }
+        else if (next_z <= p->min_z) { next_z = p->min_z; p->direction = 1; }
+        if (pedestrian_path_blocked(g, p, next_z)) {
+            p->direction = (int8_t)-p->direction;
+            next_z = p->z + p->speed * p->direction;
+            if (next_z < p->min_z || next_z > p->max_z ||
+                pedestrian_path_blocked(g, p, next_z)) continue;
+        }
+        p->z = next_z;
     }
 }
 void game_tick(GameState *g, const GameInput *input)
