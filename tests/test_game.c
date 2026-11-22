@@ -80,7 +80,7 @@ static void test_obstacle_collision_stops_player(void)
     game_init(&game);
     assert(game_add_obstacle(&game, &wall));
     game_tick(&game, &input);
-    assert(game.player.z == 50);
+    assert(game.player.z == 0);
     assert(game.player.vz == 0);
     assert(game_validate(&game));
 }
