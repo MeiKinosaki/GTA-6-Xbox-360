@@ -1,4 +1,4 @@
-name: Xenon toolchain and ELF build
+name: Build Xbox 360 default.xex
 
 on:
   push:
@@ -10,30 +10,56 @@ permissions:
   contents: read
 
 jobs:
-  xenon-build:
-    name: Build Xenon ELF with Free60 LibXenon
+  build-xex:
+    name: Build and validate default.xex
     runs-on: ubuntu-latest
     steps:
-      - name: Check out source
+      - name: Check out project
         uses: actions/checkout@v4
 
-      - name: Pull Free60 LibXenon build image
-        run: docker pull free60/libxenon:latest
-
-      - name: Compile and verify Xenon ELF
+      - name: Install XSDK build dependencies
         run: |
-          docker run --rm \
-            -v "$PWD:/workspace" \
-            -w /workspace \
-            free60/libxenon:latest \
-            bash -lc 'export DEVKITXENON=/usr/local/xenon; export PATH="$PATH:$DEVKITXENON/bin:$DEVKITXENON/usr/bin"; make clean verify-elf toolchain-info'
+          sudo apt-get update
+          sudo apt-get install -y build-essential bison flex texinfo libgmp-dev libmpfr-dev libmpc-dev curl xz-utils patch python3 cmake ninja-build git
 
-      - name: Upload Xenon ELF build artifacts
+      - name: Check out XSDK
+        run: git clone --depth 1 https://github.com/xenosworks/xsdk.git "$HOME/xsdk"
+
+      - name: Build XSDK PowerPC toolchain
+        run: |
+          cd "$HOME/xsdk"
+          PREFIX="$HOME/xsdk-gcc" WORK="$HOME/xsdk-gcc-work" JOBS="$(nproc)" tools/toolchain/build.sh
+
+      - name: Build XSDK runtime and libraries
+        run: |
+          cd "$HOME/xsdk"
+          make -j"$(nproc)" TOOLCHAIN="$HOME/xsdk-gcc/bin/powerpc-xsdk-elf-"
+
+      - name: Configure GTA 6 Xbox 360 title
+        run: |
+          cmake -S . -B build/xsdk-title -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="$HOME/xsdk/cmake/xsdk.cmake" \
+            -DXSDK_TOOLCHAIN="$HOME/xsdk-gcc" \
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Compile and package XEX2
+        run: |
+          cmake --build build/xsdk-title --parallel
+          test -s build/xsdk-title/gta6.xex
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("build/xsdk-title/gta6.xex")
+          data = p.read_bytes()
+          if data[:4] != b"XEX2":
+              raise SystemExit("Output does not have XEX2 magic")
+          print(f"XEX2 header verified: {p} ({len(data)} bytes)")
+          PY
+          cp build/xsdk-title/gta6.xex default.xex
+          test -s default.xex
+
+      - name: Upload final Xbox 360 executable
         uses: actions/upload-artifact@v4
         with:
-          name: xenon-elf-bootstrap
-          path: |
-            Xenon.elf
-            Xenon.elf32
-            build/*.o
+          name: GTA-6-Xbox-360-default-xex
+          path: default.xex
           if-no-files-found: error
