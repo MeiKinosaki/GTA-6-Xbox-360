@@ -1,5 +1,4 @@
 #include "gta6/game.h"
-
 #define PLAYER_ACCEL 55
 #define PLAYER_FRICTION 18
 #define PLAYER_MAX_SPEED 320
@@ -7,172 +6,156 @@
 #define VEHICLE_FRICTION 9
 #define VEHICLE_MAX_SPEED 680
 #define VEHICLE_INTERACT_RADIUS 1800
+#define PLAYER_HALF_SIZE 250
+#define VEHICLE_HALF_SIZE 650
+#define CAMERA_SMOOTH_DIVISOR 4
 
-static int32_t clamp_i32(int32_t value, int32_t low, int32_t high)
+static int32_t clamp_i32(int32_t v, int32_t lo, int32_t hi)
+{ return v < lo ? lo : (v > hi ? hi : v); }
+static int32_t approach_zero(int32_t v, int32_t amount)
 {
-    if (value < low) return low;
-    if (value > high) return high;
-    return value;
-}
-
-static int32_t approach_zero(int32_t value, int32_t amount)
-{
-    if (value > 0) return value > amount ? value - amount : 0;
-    if (value < 0) return value < -amount ? value + amount : 0;
+    if (v > 0) return v > amount ? v - amount : 0;
+    if (v < 0) return v < -amount ? v + amount : 0;
     return 0;
 }
-
 static int32_t axis_value(uint8_t positive, uint8_t negative)
+{ return (positive != 0u) - (negative != 0u); }
+static int overlaps(int32_t x, int32_t z, int32_t half, const GameObstacle *o)
 {
-    return (positive != 0u) - (negative != 0u);
+    return x + half > o->min_x && x - half < o->max_x &&
+           z + half > o->min_z && z - half < o->max_z;
 }
-
-static void move_entity(int32_t *x, int32_t *z, int32_t *vx, int32_t *vz,
-                        const GameInput *input, int32_t accel,
-                        int32_t friction, int32_t max_speed,
-                        const GameState *game)
-{
-    const int32_t x_axis = axis_value(input->right, input->left);
-    const int32_t z_axis = axis_value(input->forward, input->backward);
-
-    if (x_axis != 0) *vx += x_axis * accel;
-    else *vx = approach_zero(*vx, friction);
-
-    if (z_axis != 0) *vz += z_axis * accel;
-    else *vz = approach_zero(*vz, friction);
-
-    *vx = clamp_i32(*vx, -max_speed, max_speed);
-    *vz = clamp_i32(*vz, -max_speed, max_speed);
-
-    *x += *vx;
-    *z += *vz;
-
-    if (*x < game->min_x || *x > game->max_x) {
-        *x = clamp_i32(*x, game->min_x, game->max_x);
-        *vx = 0;
-    }
-    if (*z < game->min_z || *z > game->max_z) {
-        *z = clamp_i32(*z, game->min_z, game->max_z);
-        *vz = 0;
-    }
-}
-
-void game_init(GameState *game)
+static void resolve_obstacles(int32_t old_x, int32_t old_z,
+ int32_t *x, int32_t *z, int32_t *vx, int32_t *vz,
+ int32_t half, const GameState *g)
 {
     uint32_t i;
-    if (game == 0) return;
-
-    game->min_x = -50000;
-    game->max_x = 50000;
-    game->min_z = -50000;
-    game->max_z = 50000;
-
-    game->player.x = 0;
-    game->player.z = 0;
-    game->player.vx = 0;
-    game->player.vz = 0;
-    game->player.vehicle_index = -1;
-
-    game->vehicle_count = 2;
-    game->simulation_ticks = 0;
-
-    for (i = 0; i < GAME_MAX_VEHICLES; ++i) {
-        game->vehicles[i].x = 0;
-        game->vehicles[i].z = 0;
-        game->vehicles[i].vx = 0;
-        game->vehicles[i].vz = 0;
-        game->vehicles[i].occupied = 0;
-    }
-
-    /* Temporary test-district parking positions. */
-    game->vehicles[0].x = 4000;
-    game->vehicles[0].z = 0;
-    game->vehicles[1].x = -6000;
-    game->vehicles[1].z = 2500;
-}
-
-int game_interact(GameState *game)
-{
-    uint32_t i;
-    int32_t best_index = -1;
-    int64_t best_distance = (int64_t)VEHICLE_INTERACT_RADIUS *
-                            VEHICLE_INTERACT_RADIUS;
-
-    if (game == 0) return 0;
-
-    if (game->player.vehicle_index >= 0) {
-        GameVehicle *vehicle = &game->vehicles[(uint8_t)game->player.vehicle_index];
-        vehicle->occupied = 0;
-        game->player.vehicle_index = -1;
-        game->player.x = clamp_i32(vehicle->x + 1200, game->min_x, game->max_x);
-        game->player.z = vehicle->z;
-        game->player.vx = 0;
-        game->player.vz = 0;
-        return 1;
-    }
-
-    for (i = 0; i < game->vehicle_count; ++i) {
-        const int64_t dx = (int64_t)game->vehicles[i].x - game->player.x;
-        const int64_t dz = (int64_t)game->vehicles[i].z - game->player.z;
-        const int64_t distance = dx * dx + dz * dz;
-        if (!game->vehicles[i].occupied && distance <= best_distance) {
-            best_distance = distance;
-            best_index = (int32_t)i;
+    for (i = 0; i < g->obstacle_count; ++i) {
+        const GameObstacle *o = &g->obstacles[i];
+        if (overlaps(*x, *z, half, o)) {
+            int32_t dx = *x - old_x;
+            int32_t dz = *z - old_z;
+            if (dx < 0) dx = -dx;
+            if (dz < 0) dz = -dz;
+            if (dx <= dz) {
+                *x = old_x; *vx = 0;
+                if (overlaps(*x, *z, half, o)) { *z = old_z; *vz = 0; }
+            } else {
+                *z = old_z; *vz = 0;
+                if (overlaps(*x, *z, half, o)) { *x = old_x; *vx = 0; }
+            }
         }
     }
-
-    if (best_index < 0) return 0;
-
-    game->player.vehicle_index = (int8_t)best_index;
-    game->player.vx = 0;
-    game->player.vz = 0;
-    game->vehicles[(uint8_t)best_index].occupied = 1;
-    return 1;
 }
-
-void game_tick(GameState *game, const GameInput *input)
+static void move_entity(int32_t *x, int32_t *z, int32_t *vx, int32_t *vz,
+ const GameInput *in, int32_t accel, int32_t friction, int32_t max_speed,
+ int32_t half, const GameState *g)
 {
-    GameInput neutral = {0, 0, 0, 0, 0};
-    const GameInput *controls = input != 0 ? input : &neutral;
-
-    if (game == 0) return;
-
-    if (controls->interact_pressed) (void)game_interact(game);
-
-    if (game->player.vehicle_index >= 0) {
-        GameVehicle *vehicle = &game->vehicles[(uint8_t)game->player.vehicle_index];
-        move_entity(&vehicle->x, &vehicle->z, &vehicle->vx, &vehicle->vz,
-                    controls, VEHICLE_ACCEL, VEHICLE_FRICTION,
-                    VEHICLE_MAX_SPEED, game);
-        game->player.x = vehicle->x;
-        game->player.z = vehicle->z;
-    } else {
-        move_entity(&game->player.x, &game->player.z,
-                    &game->player.vx, &game->player.vz,
-                    controls, PLAYER_ACCEL, PLAYER_FRICTION,
-                    PLAYER_MAX_SPEED, game);
-    }
-
-    ++game->simulation_ticks;
+    int32_t old_x = *x, old_z = *z;
+    int32_t ax = axis_value(in->right, in->left);
+    int32_t az = axis_value(in->forward, in->backward);
+    if (ax) *vx += ax * accel; else *vx = approach_zero(*vx, friction);
+    if (az) *vz += az * accel; else *vz = approach_zero(*vz, friction);
+    *vx = clamp_i32(*vx, -max_speed, max_speed);
+    *vz = clamp_i32(*vz, -max_speed, max_speed);
+    *x += *vx; *z += *vz;
+    *x = clamp_i32(*x, g->min_x + half, g->max_x - half);
+    *z = clamp_i32(*z, g->min_z + half, g->max_z - half);
+    resolve_obstacles(old_x, old_z, x, z, vx, vz, half, g);
 }
-
-int game_validate(const GameState *game)
+static void update_camera(GameState *g)
+{
+    g->camera.target_x = g->player.x;
+    g->camera.target_z = g->player.z;
+    g->camera.x += (g->camera.target_x - g->camera.x) / CAMERA_SMOOTH_DIVISOR;
+    g->camera.z += (g->camera.target_z - g->camera.z) / CAMERA_SMOOTH_DIVISOR;
+}
+void game_init(GameState *g)
 {
     uint32_t i;
-    if (game == 0 || game->vehicle_count > GAME_MAX_VEHICLES) return 0;
-    if (game->player.x < game->min_x || game->player.x > game->max_x) return 0;
-    if (game->player.z < game->min_z || game->player.z > game->max_z) return 0;
-    if (game->player.vehicle_index >= (int8_t)game->vehicle_count) return 0;
-
-    if (game->player.vehicle_index >= 0 &&
-        !game->vehicles[(uint8_t)game->player.vehicle_index].occupied) return 0;
-
-    for (i = 0; i < game->vehicle_count; ++i) {
-        const GameVehicle *vehicle = &game->vehicles[i];
-        if (vehicle->x < game->min_x || vehicle->x > game->max_x) return 0;
-        if (vehicle->z < game->min_z || vehicle->z > game->max_z) return 0;
-        if (vehicle->occupied &&
-            game->player.vehicle_index != (int8_t)i) return 0;
+    if (!g) return;
+    g->min_x = -50000; g->max_x = 50000;
+    g->min_z = -50000; g->max_z = 50000;
+    g->player.x = 0; g->player.z = 0;
+    g->player.vx = 0; g->player.vz = 0; g->player.vehicle_index = -1;
+    g->vehicle_count = 2; g->obstacle_count = 0; g->simulation_ticks = 0;
+    g->camera.x = 0; g->camera.z = 0; g->camera.target_x = 0; g->camera.target_z = 0;
+    for (i = 0; i < GAME_MAX_VEHICLES; ++i) {
+        g->vehicles[i].x = 0; g->vehicles[i].z = 0;
+        g->vehicles[i].vx = 0; g->vehicles[i].vz = 0;
+        g->vehicles[i].occupied = 0;
+    }
+    for (i = 0; i < GAME_MAX_OBSTACLES; ++i) {
+        g->obstacles[i].min_x = 0; g->obstacles[i].max_x = 0;
+        g->obstacles[i].min_z = 0; g->obstacles[i].max_z = 0;
+    }
+    g->vehicles[0].x = 4000;
+    g->vehicles[1].x = -6000; g->vehicles[1].z = 2500;
+}
+int game_add_obstacle(GameState *g, const GameObstacle *o)
+{
+    if (!g || !o || g->obstacle_count >= GAME_MAX_OBSTACLES ||
+        o->min_x >= o->max_x || o->min_z >= o->max_z) return 0;
+    g->obstacles[g->obstacle_count++] = *o;
+    return 1;
+}
+int game_interact(GameState *g)
+{
+    uint32_t i;
+    int32_t best = -1;
+    int64_t best_d = (int64_t)VEHICLE_INTERACT_RADIUS * VEHICLE_INTERACT_RADIUS;
+    if (!g) return 0;
+    if (g->player.vehicle_index >= 0) {
+        GameVehicle *v = &g->vehicles[(uint8_t)g->player.vehicle_index];
+        v->occupied = 0; g->player.vehicle_index = -1;
+        g->player.x = clamp_i32(v->x + 1200, g->min_x + PLAYER_HALF_SIZE, g->max_x - PLAYER_HALF_SIZE);
+        g->player.z = v->z; g->player.vx = 0; g->player.vz = 0;
+        return 1;
+    }
+    for (i = 0; i < g->vehicle_count; ++i) {
+        int64_t dx = (int64_t)g->vehicles[i].x - g->player.x;
+        int64_t dz = (int64_t)g->vehicles[i].z - g->player.z;
+        int64_t d = dx * dx + dz * dz;
+        if (!g->vehicles[i].occupied && d <= best_d) { best_d = d; best = (int32_t)i; }
+    }
+    if (best < 0) return 0;
+    g->player.vehicle_index = (int8_t)best;
+    g->player.vx = 0; g->player.vz = 0;
+    g->vehicles[(uint8_t)best].occupied = 1;
+    return 1;
+}
+void game_tick(GameState *g, const GameInput *input)
+{
+    GameInput neutral = {0,0,0,0,0};
+    const GameInput *in = input ? input : &neutral;
+    if (!g) return;
+    if (in->interact_pressed) (void)game_interact(g);
+    if (g->player.vehicle_index >= 0) {
+        GameVehicle *v = &g->vehicles[(uint8_t)g->player.vehicle_index];
+        move_entity(&v->x, &v->z, &v->vx, &v->vz, in,
+            VEHICLE_ACCEL, VEHICLE_FRICTION, VEHICLE_MAX_SPEED, VEHICLE_HALF_SIZE, g);
+        g->player.x = v->x; g->player.z = v->z;
+    } else {
+        move_entity(&g->player.x, &g->player.z, &g->player.vx, &g->player.vz,
+            in, PLAYER_ACCEL, PLAYER_FRICTION, PLAYER_MAX_SPEED, PLAYER_HALF_SIZE, g);
+    }
+    update_camera(g);
+    ++g->simulation_ticks;
+}
+int game_validate(const GameState *g)
+{
+    uint32_t i;
+    if (!g || g->vehicle_count > GAME_MAX_VEHICLES || g->obstacle_count > GAME_MAX_OBSTACLES) return 0;
+    if (g->player.x < g->min_x || g->player.x > g->max_x ||
+        g->player.z < g->min_z || g->player.z > g->max_z) return 0;
+    if (g->player.vehicle_index >= (int8_t)g->vehicle_count) return 0;
+    if (g->player.vehicle_index >= 0 &&
+        !g->vehicles[(uint8_t)g->player.vehicle_index].occupied) return 0;
+    for (i = 0; i < g->vehicle_count; ++i) {
+        const GameVehicle *v = &g->vehicles[i];
+        if (v->x < g->min_x || v->x > g->max_x ||
+            v->z < g->min_z || v->z > g->max_z) return 0;
+        if (v->occupied && g->player.vehicle_index != (int8_t)i) return 0;
     }
     return 1;
 }
