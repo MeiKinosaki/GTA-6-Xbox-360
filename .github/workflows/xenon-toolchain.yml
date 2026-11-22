@@ -1,0 +1,36 @@
+name: Xenon toolchain smoke test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  xenon-compile:
+    name: Compile bootstrap with Free60 LibXenon image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Pull Free60 LibXenon build image
+        run: docker pull free60/libxenon:latest
+
+      - name: Verify Xenon compiler and compile object
+        run: |
+          docker run --rm \
+            -v "$PWD:/workspace" \
+            -w /workspace \
+            free60/libxenon:latest \
+            bash -lc 'export DEVKITXENON=/usr/local/xenon; export PATH="$PATH:$DEVKITXENON/bin:$DEVKITXENON/usr/bin"; make clean all toolchain-info'
+
+      - name: Upload compiler smoke-test object
+        uses: actions/upload-artifact@v4
+        with:
+          name: xenon-bootstrap-object
+          path: build/main.o
+          if-no-files-found: error
