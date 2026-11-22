@@ -101,6 +101,21 @@ static void test_obstacle_validation(void)
     game_init(&game);
     assert(!game_add_obstacle(&game, &bad));
 }
+static void test_traffic_follows_patrol_route(void)
+{
+    GameState game;
+    int32_t z;
+    uint32_t i;
+    game_init(&game);
+    assert(game.traffic_count == 2);
+    z = game.traffic[0].z;
+    game_tick(&game, 0);
+    assert(game.traffic[0].z > z);
+    for (i = 0; i < 2000; ++i) game_tick(&game, 0);
+    assert(game.traffic[0].z >= game.traffic[0].min_z);
+    assert(game.traffic[0].z <= game.traffic[0].max_z);
+    assert(game_validate(&game));
+}
 static void test_pedestrian_avoids_blocked_patrol_path(void)
 {
     GameState game;
@@ -140,6 +155,7 @@ int main(void)
     test_obstacle_validation();
     test_pedestrian_patrol_and_turnaround();
     test_pedestrian_avoids_blocked_patrol_path();
-    puts("Gameplay core tests: 10/10 passed");
+    test_traffic_follows_patrol_route();
+    puts("Gameplay core tests: 11/11 passed");
     return 0;
 }
