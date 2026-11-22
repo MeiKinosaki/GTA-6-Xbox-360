@@ -10,9 +10,23 @@ permissions:
   contents: read
 
 jobs:
+  gameplay-tests:
+    name: Host gameplay core regression tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out project
+        uses: actions/checkout@v4
+      - name: Compile gameplay tests
+        run: |
+          gcc -std=c11 -O2 -Wall -Wextra -Werror -Iinclude \
+            src/game.c tests/test_game.c -o gameplay-tests
+      - name: Run gameplay tests
+        run: ./gameplay-tests
+
   build-xex:
     name: Build and validate default.xex
     runs-on: ubuntu-latest
+    needs: gameplay-tests
     steps:
       - name: Check out project
         uses: actions/checkout@v4
@@ -28,7 +42,7 @@ jobs:
       - name: Build XSDK PowerPC toolchain
         run: |
           cd "$HOME/xsdk"
-          PREFIX="$HOME/xsdk-gcc" WORK="$HOME/xsdk-gcc-work" JOBS="$(nproc)" tools/toolchain/build.sh
+          PREFIX="$HOME/xsdk-gcc" WORK="$HOME/xsdk-gcc-work" JOBS="$(nproc)" bash tools/toolchain/build.sh
 
       - name: Build XSDK runtime and libraries
         run: |
