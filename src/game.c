@@ -84,7 +84,7 @@ void game_init(GameState *g)
     g->min_z = -50000; g->max_z = 50000;
     g->player.x = 0; g->player.z = 0;
     g->player.vx = 0; g->player.vz = 0; g->player.vehicle_index = -1;
-    g->vehicle_count = 2; g->obstacle_count = 0; g->pedestrian_count = 2; g->simulation_ticks = 0;
+    g->vehicle_count = 2; g->obstacle_count = 0; g->pedestrian_count = 2; g->traffic_count = 2; g->simulation_ticks = 0;
     g->camera.x = 0; g->camera.z = 0; g->camera.target_x = 0; g->camera.target_z = 0;
     for (i = 0; i < GAME_MAX_VEHICLES; ++i) {
         g->vehicles[i].x = 0; g->vehicles[i].z = 0;
@@ -110,12 +110,28 @@ void game_init(GameState *g)
     g->pedestrians[1].min_z = -1000; g->pedestrians[1].max_z = 4500;
     g->pedestrians[1].speed = 9; g->pedestrians[1].direction = -1;
     g->pedestrians[1].active = 1;
+    for (i = 0; i < GAME_MAX_TRAFFIC; ++i) {
+        g->traffic[i].x = 0; g->traffic[i].z = 0;
+        g->traffic[i].min_z = 0; g->traffic[i].max_z = 0;
+        g->traffic[i].speed = 0; g->traffic[i].direction = 1;
+        g->traffic[i].active = 0;
+    }
+    g->traffic[0].x = -12000; g->traffic[0].z = -8000;
+    g->traffic[0].min_z = -18000; g->traffic[0].max_z = 18000;
+    g->traffic[0].speed = 24; g->traffic[0].active = 1;
+    g->traffic[1].x = 12000; g->traffic[1].z = 9000;
+    g->traffic[1].min_z = -16000; g->traffic[1].max_z = 16000;
+    g->traffic[1].speed = 20; g->traffic[1].direction = -1; g->traffic[1].active = 1;
 }
 int game_add_obstacle(GameState *g, const GameObstacle *o)
 {
     if (!g || !o || g->obstacle_count >= GAME_MAX_OBSTACLES ||
         o->min_x >= o->max_x || o->min_z >= o->max_z) return 0;
     g->obstacles[g->obstacle_count++] = *o;
+    for (i = 0; i < g->traffic_count; ++i) {
+        const GameTrafficVehicle *v = &g->traffic[i];
+        if (v->active && (v->min_z > v->max_z || v->z < v->min_z || v->z > v->max_z || v->speed < 0)) return 0;
+    }
     return 1;
 }
 int game_interact(GameState *g)
@@ -172,6 +188,38 @@ static void update_pedestrians(GameState *g)
         p->z = next_z;
     }
 }
+static int traffic_path_blocked(const GameState *g, const GameTrafficVehicle *v, int32_t next_z)
+{
+    uint32_t i;
+    for (i = 0; i < g->obstacle_count; ++i) {
+        const GameObstacle *o = &g->obstacles[i];
+        if (v->x + VEHICLE_HALF_SIZE > o->min_x &&
+            v->x - VEHICLE_HALF_SIZE < o->max_x &&
+            next_z + VEHICLE_HALF_SIZE > o->min_z &&
+            next_z - VEHICLE_HALF_SIZE < o->max_z) return 1;
+    }
+    for (i = 0; i < g->traffic_count; ++i) {
+        const GameTrafficVehicle *other = &g->traffic[i];
+        if (other == v || !other->active) continue;
+        if (v->x == other->x && next_z + VEHICLE_HALF_SIZE > other->z - VEHICLE_HALF_SIZE &&
+            next_z - VEHICLE_HALF_SIZE < other->z + VEHICLE_HALF_SIZE) return 1;
+    }
+    return 0;
+}
+static void update_traffic(GameState *g)
+{
+    uint32_t i;
+    for (i = 0; i < g->traffic_count; ++i) {
+        GameTrafficVehicle *v = &g->traffic[i];
+        int32_t next_z;
+        if (!v->active || v->speed <= 0 || v->min_z >= v->max_z) continue;
+        next_z = v->z + v->speed * v->direction;
+        if (next_z >= v->max_z) { next_z = v->max_z; v->direction = -1; }
+        else if (next_z <= v->min_z) { next_z = v->min_z; v->direction = 1; }
+        if (traffic_path_blocked(g, v, next_z)) continue;
+        v->z = next_z;
+    }
+}
 void game_tick(GameState *g, const GameInput *input)
 {
     GameInput neutral = {0,0,0,0,0};
@@ -189,13 +237,15 @@ void game_tick(GameState *g, const GameInput *input)
     }
     update_camera(g);
     update_pedestrians(g);
+    update_traffic(g);
     ++g->simulation_ticks;
 }
 int game_validate(const GameState *g)
 {
     uint32_t i;
     if (!g || g->vehicle_count > GAME_MAX_VEHICLES || g->obstacle_count > GAME_MAX_OBSTACLES ||
-        g->pedestrian_count > GAME_MAX_PEDESTRIANS) return 0;
+        g->pedestrian_count > GAME_MAX_PEDESTRIANS ||
+        g->traffic_count > GAME_MAX_TRAFFIC) return 0;
     if (g->player.x < g->min_x || g->player.x > g->max_x ||
         g->player.z < g->min_z || g->player.z > g->max_z) return 0;
     if (g->player.vehicle_index >= (int8_t)g->vehicle_count) return 0;
