@@ -104,7 +104,7 @@ static void test_obstacle_validation(void)
 static void test_pedestrian_avoids_blocked_patrol_path(void)
 {
     GameState game;
-    GameObstacle wall = { 4500, 5500, -2500, 2500 };
+    GameObstacle wall = { 4500, 5500, -2990, -2500 };
     int32_t old_z;
     game_init(&game);
     assert(game_add_obstacle(&game, &wall));
