@@ -43,9 +43,16 @@ typedef struct {
 typedef struct {
     uint8_t forward, backward, left, right, interact_pressed;
 } GameInput;
+typedef struct { int16_t left_x, left_y; uint16_t buttons; } GamePadState;
+#define GAMEPAD_A 0x1000u
+#define GAMEPAD_DPAD_UP 0x0001u
+#define GAMEPAD_DPAD_DOWN 0x0002u
+#define GAMEPAD_DPAD_LEFT 0x0004u
+#define GAMEPAD_DPAD_RIGHT 0x0008u
 /* Coordinates are integer world units; 1000 units represent one metre. */
 void game_init(GameState *game);
 void game_tick(GameState *game, const GameInput *input);
+GameInput game_input_from_pad(const GamePadState *pad);
 int game_interact(GameState *game);
 int game_add_obstacle(GameState *game, const GameObstacle *obstacle);
 int game_add_road(GameState *game, const GameRoad *road);
