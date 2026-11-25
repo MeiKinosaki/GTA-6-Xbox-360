@@ -12,6 +12,7 @@
 #define GAME_MAX_ROADS 8
 #define GAME_MAX_BUILDINGS 8
 #define GAME_AUDIO_QUEUE_CAPACITY 8
+#define GAME_RENDER_MAX_ITEMS 64
 typedef struct { int32_t min_x, max_x, min_z, max_z; } GameObstacle;
 typedef struct { int32_t x, z, vx, vz; uint8_t occupied; } GameVehicle;
 typedef struct { int32_t x, z, vx, vz; int8_t vehicle_index; } GamePlayer;
@@ -24,6 +25,9 @@ typedef struct { int32_t x, z, width, depth, height; uint8_t active; } GameBuild
 typedef struct { int32_t x, z, speed; uint8_t active; } GamePoliceUnit;
 typedef struct { int32_t target_x, target_z, radius, reward; uint16_t id; uint8_t active, completed; } GameMission;
 typedef struct { uint8_t type; int32_t x, z; } GameAudioEvent;
+enum { GAME_RENDER_ROAD=1, GAME_RENDER_BUILDING, GAME_RENDER_PLAYER, GAME_RENDER_VEHICLE, GAME_RENDER_PEDESTRIAN, GAME_RENDER_TRAFFIC, GAME_RENDER_POLICE };
+typedef struct { uint8_t type; int32_t x, z, height, width, depth; } GameRenderItem;
+typedef struct { uint8_t health, armor, wanted_level; int32_t money; uint16_t mission_id; uint8_t mission_active; } GameHudState;
 #define GAME_SAVE_MAGIC 0x47543653u
 #define GAME_SAVE_VERSION 1u
 typedef struct {
@@ -78,4 +82,6 @@ size_t game_snapshot_size(void);
 int game_save_snapshot(const GameState *game, void *buffer, size_t capacity);
 int game_load_snapshot(GameState *game, const void *buffer, size_t size);
 void game_apply_damage(GameState *game, uint16_t damage);
+size_t game_build_render_list(const GameState *game, GameRenderItem *items, size_t capacity);
+void game_get_hud_state(const GameState *game, GameHudState *hud);
 #endif
