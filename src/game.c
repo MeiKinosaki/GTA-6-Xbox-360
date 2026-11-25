@@ -222,6 +222,7 @@ void game_init(GameState *g)
 {
     uint32_t i;
     if (!g) return;
+    memset(g, 0, sizeof(*g));
     g->min_x = -50000; g->max_x = 50000;
     g->min_z = -50000; g->max_z = 50000;
     g->player.x = 0; g->player.z = 0;
@@ -582,6 +583,7 @@ GameInput game_input_from_pad(const GamePadState *pad)
     in.right = (uint8_t)((pad->left_x > deadzone) || (pad->buttons & GAMEPAD_DPAD_RIGHT));
     in.left = (uint8_t)((pad->left_x < -deadzone) || (pad->buttons & GAMEPAD_DPAD_LEFT));
     in.interact_pressed = (uint8_t)((pad->buttons & GAMEPAD_A) != 0u);
+    in.brake = (uint8_t)((pad->buttons & GAMEPAD_X) != 0u);
     return in;
 }
 
@@ -593,8 +595,22 @@ void game_tick(GameState *g, const GameInput *input)
     if (in->interact_pressed) (void)game_interact(g);
     if (g->player.vehicle_index >= 0) {
         GameVehicle *v = &g->vehicles[(uint8_t)g->player.vehicle_index];
-        move_entity(&v->x, &v->z, &v->vx, &v->vz, in,
-            VEHICLE_ACCEL, VEHICLE_FRICTION, VEHICLE_MAX_SPEED, VEHICLE_HALF_SIZE, g);
+        if (in->brake) {
+            v->vx = approach_zero(v->vx, VEHICLE_FRICTION * 8);
+            v->vz = approach_zero(v->vz, VEHICLE_FRICTION * 8);
+            v->x += v->vx; v->z += v->vz;
+            if (v->x < g->min_x + VEHICLE_HALF_SIZE || v->x > g->max_x - VEHICLE_HALF_SIZE) {
+                v->x = clamp_i32(v->x, g->min_x + VEHICLE_HALF_SIZE, g->max_x - VEHICLE_HALF_SIZE);
+                v->vx = 0;
+            }
+            if (v->z < g->min_z + VEHICLE_HALF_SIZE || v->z > g->max_z - VEHICLE_HALF_SIZE) {
+                v->z = clamp_i32(v->z, g->min_z + VEHICLE_HALF_SIZE, g->max_z - VEHICLE_HALF_SIZE);
+                v->vz = 0;
+            }
+        } else {
+            move_entity(&v->x, &v->z, &v->vx, &v->vz, in,
+                VEHICLE_ACCEL, VEHICLE_FRICTION, VEHICLE_MAX_SPEED, VEHICLE_HALF_SIZE, g);
+        }
         g->player.x = v->x; g->player.z = v->z;
     } else {
         move_entity(&g->player.x, &g->player.z, &g->player.vx, &g->player.vz,
