@@ -288,11 +288,11 @@ static void update_traffic(GameState *g)
             if (next_x >= v->max_x) {
                 next_x = v->max_x;
                 v->axis = 0;
-                v->direction = 1;
+                v->direction = -1;
             } else if (next_x <= v->min_x) {
                 next_x = v->min_x;
                 v->axis = 0;
-                v->direction = -1;
+                v->direction = 1;
             }
         }
         if (traffic_path_blocked(g, v, next_x, next_z)) continue;
