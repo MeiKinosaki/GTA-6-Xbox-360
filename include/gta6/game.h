@@ -1,6 +1,7 @@
 #ifndef GTA6_GAME_H
 #define GTA6_GAME_H
 #include <stdint.h>
+#include <stddef.h>
 #define GAME_MAX_VEHICLES 4
 #define GAME_MAX_OBSTACLES 8
 #define GAME_MAX_PEDESTRIANS 4
@@ -23,6 +24,12 @@ typedef struct { int32_t x, z, width, depth, height; uint8_t active; } GameBuild
 typedef struct { int32_t x, z, speed; uint8_t active; } GamePoliceUnit;
 typedef struct { int32_t target_x, target_z, radius, reward; uint16_t id; uint8_t active, completed; } GameMission;
 typedef struct { uint8_t type; int32_t x, z; } GameAudioEvent;
+#define GAME_SAVE_MAGIC 0x47543653u
+#define GAME_SAVE_VERSION 1u
+typedef struct {
+    uint32_t magic, version, payload_size, checksum;
+    uint8_t reserved[8];
+} GameSaveHeader;
 enum { GAME_AUDIO_VEHICLE_ENTER = 1, GAME_AUDIO_VEHICLE_EXIT, GAME_AUDIO_MISSION_COMPLETE, GAME_AUDIO_WANTED_RAISED };
 typedef struct {
     int32_t min_x, max_x, min_z, max_z;
@@ -67,4 +74,8 @@ int game_start_mission(GameState *game, uint16_t mission_id, int32_t target_x, i
 int game_raise_wanted(GameState *game, uint8_t stars);
 int game_complete_mission(GameState *game);
 int game_pop_audio_event(GameState *game, GameAudioEvent *event);
+size_t game_snapshot_size(void);
+int game_save_snapshot(const GameState *game, void *buffer, size_t capacity);
+int game_load_snapshot(GameState *game, const void *buffer, size_t size);
+void game_apply_damage(GameState *game, uint16_t damage);
 #endif
