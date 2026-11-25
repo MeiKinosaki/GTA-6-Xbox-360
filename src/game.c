@@ -84,7 +84,7 @@ void game_init(GameState *g)
     g->min_z = -50000; g->max_z = 50000;
     g->player.x = 0; g->player.z = 0;
     g->player.vx = 0; g->player.vz = 0; g->player.vehicle_index = -1;
-    g->vehicle_count = 2; g->obstacle_count = 0; g->pedestrian_count = 2; g->traffic_count = 2; g->simulation_ticks = 0;
+    g->vehicle_count = 2; g->obstacle_count = 0; g->pedestrian_count = 2; g->traffic_count = 2; g->traffic_light_count = 1; g->simulation_ticks = 0;
     g->camera.x = 0; g->camera.z = 0; g->camera.target_x = 0; g->camera.target_z = 0;
     for (i = 0; i < GAME_MAX_VEHICLES; ++i) {
         g->vehicles[i].x = 0; g->vehicles[i].z = 0;
@@ -122,6 +122,12 @@ void game_init(GameState *g)
     g->traffic[1].x = 12000; g->traffic[1].z = 9000;
     g->traffic[1].min_z = -16000; g->traffic[1].max_z = 16000;
     g->traffic[1].speed = 20; g->traffic[1].direction = -1; g->traffic[1].active = 1;
+    g->traffic_lights[0].x = -12000; g->traffic_lights[0].stop_z = -6000;
+    g->traffic_lights[0].phase_ticks = 0; g->traffic_lights[0].active = 1;
+    for (i = 1; i < GAME_MAX_TRAFFIC_LIGHTS; ++i) {
+        g->traffic_lights[i].x = 0; g->traffic_lights[i].stop_z = 0;
+        g->traffic_lights[i].phase_ticks = 0; g->traffic_lights[i].active = 0;
+    }
 }
 int game_add_obstacle(GameState *g, const GameObstacle *o)
 {
@@ -216,6 +222,38 @@ static int traffic_path_blocked(const GameState *g, const GameTrafficVehicle *v,
     }
     return 0;
 }
+static int traffic_light_blocks(const GameState *g, const GameTrafficVehicle *v, int32_t next_z)
+{
+    uint32_t i;
+    for (i = 0; i < g->traffic_light_count; ++i) {
+        const GameTrafficLight *light = &g->traffic_lights[i];
+        int same_lane, approaching;
+        int green_for_forward;
+        if (!light->active) continue;
+        same_lane = v->x + VEHICLE_HALF_SIZE > light->x - VEHICLE_HALF_SIZE &&
+                    v->x - VEHICLE_HALF_SIZE < light->x + VEHICLE_HALF_SIZE;
+        if (!same_lane) continue;
+        approaching = v->direction > 0 ?
+            (v->z + VEHICLE_HALF_SIZE < light->stop_z &&
+             next_z + VEHICLE_HALF_SIZE >= light->stop_z) :
+            (v->z - VEHICLE_HALF_SIZE > light->stop_z &&
+             next_z - VEHICLE_HALF_SIZE <= light->stop_z);
+        if (!approaching) continue;
+        green_for_forward = light->phase_ticks < 120u;
+        if ((v->direction > 0 && !green_for_forward) ||
+            (v->direction < 0 && green_for_forward)) return 1;
+    }
+    return 0;
+}
+static void update_traffic_lights(GameState *g)
+{
+    uint32_t i;
+    for (i = 0; i < g->traffic_light_count; ++i) {
+        GameTrafficLight *light = &g->traffic_lights[i];
+        if (light->active)
+            light->phase_ticks = (uint16_t)((light->phase_ticks + 1u) % 240u);
+    }
+}
 static void update_traffic(GameState *g)
 {
     uint32_t i;
@@ -226,7 +264,7 @@ static void update_traffic(GameState *g)
         next_z = v->z + v->speed * v->direction;
         if (next_z >= v->max_z) { next_z = v->max_z; v->direction = -1; }
         else if (next_z <= v->min_z) { next_z = v->min_z; v->direction = 1; }
-        if (traffic_path_blocked(g, v, next_z)) continue;
+        if (traffic_path_blocked(g, v, next_z) || traffic_light_blocks(g, v, next_z)) continue;
         v->z = next_z;
     }
 }
@@ -247,6 +285,7 @@ void game_tick(GameState *g, const GameInput *input)
     }
     update_camera(g);
     update_pedestrians(g);
+    update_traffic_lights(g);
     update_traffic(g);
     ++g->simulation_ticks;
 }
@@ -255,7 +294,8 @@ int game_validate(const GameState *g)
     uint32_t i;
     if (!g || g->vehicle_count > GAME_MAX_VEHICLES || g->obstacle_count > GAME_MAX_OBSTACLES ||
         g->pedestrian_count > GAME_MAX_PEDESTRIANS ||
-        g->traffic_count > GAME_MAX_TRAFFIC) return 0;
+        g->traffic_count > GAME_MAX_TRAFFIC ||
+        g->traffic_light_count > GAME_MAX_TRAFFIC_LIGHTS) return 0;
     if (g->player.x < g->min_x || g->player.x > g->max_x ||
         g->player.z < g->min_z || g->player.z > g->max_z) return 0;
     if (g->player.vehicle_index >= (int8_t)g->vehicle_count) return 0;
@@ -274,6 +314,9 @@ int game_validate(const GameState *g)
     for (i = 0; i < g->traffic_count; ++i) {
         const GameTrafficVehicle *v = &g->traffic[i];
         if (v->active && (v->min_z > v->max_z || v->z < v->min_z || v->z > v->max_z || v->speed < 0)) return 0;
+    }
+    for (i = 0; i < g->traffic_light_count; ++i) {
+        if (g->traffic_lights[i].phase_ticks >= 240u) return 0;
     }
     return 1;
 }
