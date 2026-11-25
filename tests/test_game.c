@@ -245,9 +245,35 @@ static void test_pedestrian_patrol_and_turnaround(void)
     assert(game.pedestrians[0].z <= game.pedestrians[0].max_z);
     assert(game_validate(&game));
 }
+
+static void test_mission_objective_and_reward(void)
+{
+    GameState game;
+    game_init(&game);
+    assert(game_start_mission(&game, 1, 0, 0, 1000, 500));
+    assert(game_complete_mission(&game));
+    assert(game.money == 500);
+    assert(game.missions[0].completed);
+    assert(!game_complete_mission(&game));
+    assert(game_validate(&game));
+}
+static void test_wanted_level_spawns_police_response(void)
+{
+    GameState game;
+    game_init(&game);
+    assert(game_raise_wanted(&game, 2));
+    assert(game.wanted_level == 2);
+    assert(game.police[0].active && game.police[1].active);
+    game_tick(&game, 0);
+    assert(game.police[0].x != 0 || game.police[0].z != 0);
+    assert(game_validate(&game));
+}
+
 int main(void)
 {
     test_initial_state();
+    test_mission_objective_and_reward();
+    test_wanted_level_spawns_police_response();
     test_player_movement_and_friction();
     test_diagonal_movement_is_normalized();
     test_world_boundaries();
@@ -264,6 +290,6 @@ int main(void)
     test_traffic_obeys_red_and_green_light_phases();
     test_traffic_avoids_adjacent_lane_overlap();
     test_traffic_yields_to_player_and_parked_vehicles();
-    puts("Gameplay core tests: 17/17 passed");
+    puts("Gameplay core tests: 19/19 passed");
     return 0;
 }
