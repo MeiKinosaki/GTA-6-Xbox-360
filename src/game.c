@@ -91,6 +91,7 @@ void game_init(GameState *g)
     g->player.x = 0; g->player.z = 0;
     g->player.vx = 0; g->player.vz = 0; g->player.vehicle_index = -1;
     g->vehicle_count = 2; g->obstacle_count = 0; g->pedestrian_count = 2; g->traffic_count = 2; g->traffic_light_count = 1; g->simulation_ticks = 0;
+    g->money = 0; g->health = 100; g->armor = 0; g->wanted_level = 0; g->wanted_ticks = 0; g->current_mission = 0;
     g->camera.x = 0; g->camera.z = 0; g->camera.target_x = 0; g->camera.target_z = 0;
     for (i = 0; i < GAME_MAX_VEHICLES; ++i) {
         g->vehicles[i].x = 0; g->vehicles[i].z = 0;
@@ -134,6 +135,16 @@ void game_init(GameState *g)
     g->traffic[1].turn_direction = -1; g->traffic[1].axis = 0; g->traffic[1].active = 1;
     g->traffic_lights[0].x = -12000; g->traffic_lights[0].stop_z = -6000;
     g->traffic_lights[0].phase_ticks = 0; g->traffic_lights[0].active = 1;
+    for (i = 0; i < GAME_MAX_POLICE; ++i) {
+        g->police[i].x = 0; g->police[i].z = 0;
+        g->police[i].speed = 0; g->police[i].active = 0;
+    }
+    for (i = 0; i < GAME_MAX_MISSIONS; ++i) {
+        g->missions[i].target_x = 0; g->missions[i].target_z = 0;
+        g->missions[i].radius = 0; g->missions[i].reward = 0;
+        g->missions[i].id = 0; g->missions[i].active = 0;
+        g->missions[i].completed = 0;
+    }
     for (i = 1; i < GAME_MAX_TRAFFIC_LIGHTS; ++i) {
         g->traffic_lights[i].x = 0; g->traffic_lights[i].stop_z = 0;
         g->traffic_lights[i].phase_ticks = 0; g->traffic_lights[i].active = 0;
@@ -301,6 +312,81 @@ static void update_traffic(GameState *g)
         v->z = next_z;
     }
 }
+
+int game_start_mission(GameState *g, uint16_t id, int32_t x, int32_t z, int32_t radius, int32_t reward)
+{
+    uint32_t i;
+    if (!g || radius <= 0 || reward < 0) return 0;
+    for (i = 0; i < GAME_MAX_MISSIONS; ++i) {
+        GameMission *m = &g->missions[i];
+        if (!m->active && !m->completed) {
+            m->id = id; m->target_x = x; m->target_z = z;
+            m->radius = radius; m->reward = reward;
+            m->active = 1; m->completed = 0;
+            g->current_mission = (uint8_t)i;
+            return 1;
+        }
+    }
+    return 0;
+}
+int game_raise_wanted(GameState *g, uint8_t stars)
+{
+    uint32_t i;
+    if (!g || stars == 0) return 0;
+    if (stars > 5) stars = 5;
+    if (g->wanted_level + stars > 5) g->wanted_level = 5;
+    else g->wanted_level = (uint8_t)(g->wanted_level + stars);
+    g->wanted_ticks = 0;
+    for (i = 0; i < GAME_MAX_POLICE && i < g->wanted_level; ++i) {
+        if (!g->police[i].active) {
+            g->police[i].x = g->player.x + (int32_t)(i + 1u) * 6000;
+            g->police[i].z = g->player.z - 6000;
+            g->police[i].speed = 45 + (int32_t)g->wanted_level * 8;
+            g->police[i].active = 1;
+        }
+    }
+    return 1;
+}
+int game_complete_mission(GameState *g)
+{
+    GameMission *m;
+    int64_t dx, dz;
+    if (!g || g->current_mission >= GAME_MAX_MISSIONS) return 0;
+    m = &g->missions[g->current_mission];
+    if (!m->active || m->completed) return 0;
+    dx = (int64_t)g->player.x - m->target_x;
+    dz = (int64_t)g->player.z - m->target_z;
+    if (dx * dx + dz * dz > (int64_t)m->radius * m->radius) return 0;
+    m->active = 0; m->completed = 1;
+    if (g->money <= INT32_MAX - m->reward) g->money += m->reward;
+    else g->money = INT32_MAX;
+    return 1;
+}
+static void update_police(GameState *g)
+{
+    uint32_t i;
+    int nearby = 0;
+    for (i = 0; i < GAME_MAX_POLICE; ++i) {
+        GamePoliceUnit *p = &g->police[i];
+        int32_t dx, dz;
+        if (!p->active) continue;
+        dx = g->player.x - p->x; dz = g->player.z - p->z;
+        if (dx > -1800 && dx < 1800 && dz > -1800 && dz < 1800) nearby = 1;
+        if (dx > p->speed) p->x += p->speed;
+        else if (dx < -p->speed) p->x -= p->speed;
+        else p->x = g->player.x;
+        if (dz > p->speed) p->z += p->speed;
+        else if (dz < -p->speed) p->z -= p->speed;
+        else p->z = g->player.z;
+    }
+    if (g->wanted_level) {
+        if (!nearby && ++g->wanted_ticks >= 1800u) {
+            --g->wanted_level; g->wanted_ticks = 0;
+            for (i = 0; i < GAME_MAX_POLICE; ++i) g->police[i].active = 0;
+        }
+    }
+}
+
 void game_tick(GameState *g, const GameInput *input)
 {
     GameInput neutral = {0,0,0,0,0};
@@ -320,12 +406,14 @@ void game_tick(GameState *g, const GameInput *input)
     update_pedestrians(g);
     update_traffic_lights(g);
     update_traffic(g);
+    update_police(g);
+    (void)game_complete_mission(g);
     ++g->simulation_ticks;
 }
 int game_validate(const GameState *g)
 {
     uint32_t i;
-    if (!g || g->vehicle_count > GAME_MAX_VEHICLES || g->obstacle_count > GAME_MAX_OBSTACLES ||
+    if (!g || g->wanted_level > 5 || g->health > 100 || g->armor > 100 || g->vehicle_count > GAME_MAX_VEHICLES || g->obstacle_count > GAME_MAX_OBSTACLES ||
         g->pedestrian_count > GAME_MAX_PEDESTRIANS ||
         g->traffic_count > GAME_MAX_TRAFFIC ||
         g->traffic_light_count > GAME_MAX_TRAFFIC_LIGHTS) return 0;
@@ -351,5 +439,9 @@ int game_validate(const GameState *g)
     for (i = 0; i < g->traffic_light_count; ++i) {
         if (g->traffic_lights[i].phase_ticks >= 240u) return 0;
     }
+    for (i = 0; i < GAME_MAX_POLICE; ++i)
+        if (g->police[i].active && g->police[i].speed <= 0) return 0;
+    for (i = 0; i < GAME_MAX_MISSIONS; ++i)
+        if (g->missions[i].active && (g->missions[i].radius <= 0 || g->missions[i].reward < 0)) return 0;
     return 1;
 }
