@@ -347,9 +347,29 @@ static void test_damage_uses_armor_then_health(void)
     assert(game_validate(&game));
 }
 
+
+static void test_render_list_and_hud_projection(void)
+{
+    GameState game;
+    GameRenderItem items[GAME_RENDER_MAX_ITEMS];
+    GameHudState hud;
+    size_t count;
+    game_init(&game);
+    assert(game_start_mission(&game, 77, 5000, 5000, 100, 250));
+    assert(game_raise_wanted(&game, 1));
+    count=game_build_render_list(&game,items,GAME_RENDER_MAX_ITEMS);
+    assert(count >= 10);
+    assert(items[0].type == GAME_RENDER_ROAD);
+    game_get_hud_state(&game,&hud);
+    assert(hud.health == 100 && hud.wanted_level == 1);
+    assert(hud.mission_active && hud.mission_id == 77);
+    assert(hud.money == 0);
+}
+
 int main(void)
 {
     test_initial_state();
+    test_render_list_and_hud_projection();
     test_save_load_snapshot_roundtrip_and_corruption();
     test_damage_uses_armor_then_health();
     test_gameplay_audio_event_queue();
@@ -373,6 +393,6 @@ int main(void)
     test_traffic_obeys_red_and_green_light_phases();
     test_traffic_avoids_adjacent_lane_overlap();
     test_traffic_yields_to_player_and_parked_vehicles();
-    puts("Gameplay core tests: 24/24 passed");
+    puts("Gameplay core tests: 25/25 passed");
     return 0;
 }
