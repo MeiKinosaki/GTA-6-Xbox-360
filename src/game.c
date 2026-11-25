@@ -1,4 +1,5 @@
 #include "gta6/game.h"
+#include <string.h>
 #define PLAYER_ACCEL 55
 #define PLAYER_FRICTION 18
 #define PLAYER_MAX_SPEED 320
@@ -32,6 +33,69 @@ int game_pop_audio_event(GameState *g, GameAudioEvent *event)
     --g->audio_count;
     return 1;
 }
+
+static uint32_t snapshot_checksum(const unsigned char *data, size_t size)
+{
+    uint32_t hash = 2166136261u;
+    size_t i;
+    for (i = 0; i < size; ++i) {
+        hash ^= data[i];
+        hash *= 16777619u;
+    }
+    return hash;
+}
+size_t game_snapshot_size(void)
+{
+    return sizeof(GameSaveHeader) + sizeof(GameState);
+}
+int game_save_snapshot(const GameState *g, void *buffer, size_t capacity)
+{
+    GameSaveHeader header;
+    unsigned char *out = (unsigned char *)buffer;
+    if (!g || !buffer || capacity < game_snapshot_size() || !game_validate(g)) return 0;
+    header.magic = GAME_SAVE_MAGIC;
+    header.version = GAME_SAVE_VERSION;
+    header.payload_size = (uint32_t)sizeof(GameState);
+    header.checksum = snapshot_checksum((const unsigned char *)g, sizeof(GameState));
+    memset(header.reserved, 0, sizeof(header.reserved));
+    memcpy(out, &header, sizeof(header));
+    memcpy(out + sizeof(header), g, sizeof(GameState));
+    return 1;
+}
+int game_load_snapshot(GameState *g, const void *buffer, size_t size)
+{
+    GameSaveHeader header;
+    GameState candidate;
+    const unsigned char *in = (const unsigned char *)buffer;
+    if (!g || !buffer || size != game_snapshot_size()) return 0;
+    memcpy(&header, in, sizeof(header));
+    if (header.magic != GAME_SAVE_MAGIC || header.version != GAME_SAVE_VERSION ||
+        header.payload_size != sizeof(GameState)) return 0;
+    memcpy(&candidate, in + sizeof(header), sizeof(candidate));
+    if (snapshot_checksum((const unsigned char *)&candidate, sizeof(candidate)) != header.checksum ||
+        !game_validate(&candidate)) return 0;
+    *g = candidate;
+    return 1;
+}
+void game_apply_damage(GameState *g, uint16_t damage)
+{
+    uint16_t absorbed;
+    if (!g || damage == 0 || g->health == 0) return;
+    absorbed = damage < g->armor ? damage : g->armor;
+    g->armor = (uint8_t)(g->armor - absorbed);
+    damage = (uint16_t)(damage - absorbed);
+    g->health = damage >= g->health ? 0 : (uint8_t)(g->health - damage);
+    if (g->health == 0) {
+        g->player.vx = 0;
+        g->player.vz = 0;
+        if (g->player.vehicle_index >= 0) {
+            uint8_t index = (uint8_t)g->player.vehicle_index;
+            g->vehicles[index].vx = 0;
+            g->vehicles[index].vz = 0;
+        }
+    }
+}
+
 static int32_t clamp_i32(int32_t v, int32_t lo, int32_t hi)
 { return v < lo ? lo : (v > hi ? hi : v); }
 static int32_t approach_zero(int32_t v, int32_t amount)
