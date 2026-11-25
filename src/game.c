@@ -54,6 +54,11 @@ static void move_entity(int32_t *x, int32_t *z, int32_t *vx, int32_t *vz,
     int32_t old_x = *x, old_z = *z;
     int32_t ax = axis_value(in->right, in->left);
     int32_t az = axis_value(in->forward, in->backward);
+    /* Normalize diagonal input so it cannot exceed straight-line acceleration. */
+    if (ax && az) {
+        ax = ax * 707 / 1000;
+        az = az * 707 / 1000;
+    }
     if (ax) *vx += ax * accel; else *vx = approach_zero(*vx, friction);
     if (az) *vz += az * accel; else *vz = approach_zero(*vz, friction);
     *vx = clamp_i32(*vx, -max_speed, max_speed);
