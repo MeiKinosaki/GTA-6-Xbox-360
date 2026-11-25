@@ -9,11 +9,13 @@ Independent native Xbox 360 demake prototype inspired by the broad setting and g
 
 ## Gameplay implementation
 
-- `include/gta6/game.h`: world, player, vehicle, camera, obstacle, and input structures.
-- `src/game.c`: fixed-point player movement, acceleration/friction, world bounds, vehicle enter/drive/exit, obstacle collision response, and smoothed camera-follow target.
-- `tests/test_game.c`: regression coverage for movement, friction, world bounds, vehicle interactions, obstacle collision, camera follow, and obstacle validation.
+- `include/gta6/game.h`: player, vehicle, camera, road, building, pedestrian, traffic, traffic-light, police, mission, controller, and audio-event data.
+- `src/game.c`: fixed-point movement and friction; diagonal speed normalization; vehicle enter/drive/exit; obstacle collision; smoothed camera target; pedestrian patrol and avoidance; traffic patrol, rectangular route turns, collision yielding and signal phases; initial road/building district; mission objectives and rewards; wanted level and basic police pursuit; gamepad-state mapping; gameplay audio-event queue.
+- `tests/test_game.c`: host regression coverage for these gameplay systems.
 
-World coordinates are integer units (1000 units per metre). The current implementation is a top-down simulation foundation; it is not yet a rendered 3D world and does not yet read a physical Xbox controller.
+The initial district currently contains four road segments and four building footprints. Buildings are represented as collision obstacles and have height metadata; there is not yet a 3D renderer, mesh pipeline, texture system, or streaming world.
+
+World coordinates are integer units (1000 units per metre). The gamepad adapter translates an abstract pad state (left stick, D-pad and A button) into gameplay input; native Xbox controller polling still needs to be connected in the title runtime. The audio queue emits gameplay events, but a real XMA/audio mixer backend is not implemented yet.
 
 ## Validation policy
 
@@ -25,34 +27,36 @@ World coordinates are integer units (1000 units per metre). The current implemen
 ## Current status
 
 - Native project scope and XEX2 target: defined.
-- Initial Xenon object compilation: passed in an earlier CI run.
-- Gameplay movement and vehicle logic: implemented.
-- Camera follow and obstacle collision: implemented in source.
-- Previous gameplay CI run passed 5/5 tests before camera/collision changes.
-- A run against an earlier commit failed because its boundary assertion expected the old map edge; the assertion was updated for the player's collision radius. The current 8-test run is the one to evaluate.
-- XSDK cross-toolchain build: separate CI stage; not yet confirmed successful.
+- Gameplay core, basic traffic/pedestrian simulation, mission/wanted logic, initial district metadata, pad-input adapter, and audio event queue: implemented in source.
+- Host test suite: 22 cases in source; the latest CI run must confirm the audio-queue addition.
+- XSDK cross-toolchain build: separate CI stage; latest runs are still building the PowerPC toolchain.
 - `default.xex`: not yet confirmed generated.
 - Xbox 360 RGH runtime test: not performed.
+- Full 3D city, actual XInput polling, XMA mixer/output, save/load, mission content, police combat/arrest systems, and full UI remain incomplete.
 
 ## Roadmap
 
-### v0.1b — gameplay foundation
+### v0.1b — playable foundation
 - [x] Establish native project and XEX2 target.
 - [x] Implement player movement and vehicle enter/drive/exit logic.
-- [x] Add smoothed camera-follow state.
-- [x] Add rectangular obstacle collision.
-- [x] Add regression tests for new systems.
-- [ ] Pass current gameplay regression suite in CI.
+- [x] Add camera-follow state and rectangular collision.
+- [x] Add basic pedestrians, traffic routes, turns and traffic-light phases.
+- [x] Add first road/building district metadata.
+- [x] Add mission objective/reward and wanted/police simulation foundations.
+- [x] Add gamepad input adapter and gameplay audio event queue.
+- [ ] Confirm latest full host regression suite in CI.
 - [ ] Produce and validate `default.xex`.
+- [ ] Connect native controller, rendering and audio backends.
+- [ ] Implement save/load and complete HUD/menu flow.
 - [ ] Test launch on Xbox 360 RGH/JTAG.
 
 ### Next gameplay milestones
-- Controller mapping and camera orientation.
-- More robust collision resolution and vehicle steering/reverse/braking.
-- Test district: road grid, sidewalks, building footprints, and streaming blocks.
-- Pedestrian and traffic simulation.
-- Mission scripting, wanted level, and police response.
-- Save/load, pause menu, map, and HUD.
+- Native 3D rendering, city meshes, textures, sidewalks, lighting and world streaming.
+- Full vehicle steering, reverse, braking, damage and traffic junction rules.
+- NPC schedules, pedestrian interactions and population simulation.
+- Mission scripting, police search/chase/arrest and wanted-level decay.
+- XMA audio, music, ambience and sound effects.
+- HUD, pause menu, map, settings and save/load.
 
 ## Legal and asset policy
 
