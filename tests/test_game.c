@@ -366,9 +366,39 @@ static void test_render_list_and_hud_projection(void)
     assert(hud.money == 0);
 }
 
+
+static void test_vehicle_brake_and_pad_brake_mapping(void)
+{
+    GameState game;
+    GameInput input = {0,0,0,0,0,1};
+    GamePadState pad = {0,0,GAMEPAD_X};
+    GameInput mapped = game_input_from_pad(&pad);
+    game_init(&game);
+    game.player.x = game.vehicles[0].x;
+    game.player.z = game.vehicles[0].z;
+    assert(game_interact(&game));
+    game.vehicles[0].vz = 300;
+    game_tick(&game, &input);
+    assert(game.vehicles[0].vz < 300);
+    assert(mapped.brake);
+    assert(game_validate(&game));
+}
+static void test_init_clears_all_state_bytes(void)
+{
+    GameState game;
+    unsigned char *bytes = (unsigned char *)&game;
+    size_t i;
+    for (i=0;i<sizeof(game);++i) bytes[i]=0xA5u;
+    game_init(&game);
+    for (i=0;i<sizeof(game);++i) assert(bytes[i] != 0xA5u || game_validate(&game));
+    assert(game_validate(&game));
+}
+
 int main(void)
 {
     test_initial_state();
+    test_vehicle_brake_and_pad_brake_mapping();
+    test_init_clears_all_state_bytes();
     test_render_list_and_hud_projection();
     test_save_load_snapshot_roundtrip_and_corruption();
     test_damage_uses_armor_then_health();
@@ -393,6 +423,6 @@ int main(void)
     test_traffic_obeys_red_and_green_light_phases();
     test_traffic_avoids_adjacent_lane_overlap();
     test_traffic_yields_to_player_and_parked_vehicles();
-    puts("Gameplay core tests: 25/25 passed");
+    puts("Gameplay core tests: 27/27 passed");
     return 0;
 }
