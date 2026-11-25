@@ -431,6 +431,20 @@ static void update_police(GameState *g)
     }
 }
 
+
+GameInput game_input_from_pad(const GamePadState *pad)
+{
+    GameInput in = {0,0,0,0,0};
+    const int16_t deadzone = 8000;
+    if (!pad) return in;
+    in.forward = (uint8_t)((pad->left_y > deadzone) || (pad->buttons & GAMEPAD_DPAD_UP));
+    in.backward = (uint8_t)((pad->left_y < -deadzone) || (pad->buttons & GAMEPAD_DPAD_DOWN));
+    in.right = (uint8_t)((pad->left_x > deadzone) || (pad->buttons & GAMEPAD_DPAD_RIGHT));
+    in.left = (uint8_t)((pad->left_x < -deadzone) || (pad->buttons & GAMEPAD_DPAD_LEFT));
+    in.interact_pressed = (uint8_t)((pad->buttons & GAMEPAD_A) != 0u);
+    return in;
+}
+
 void game_tick(GameState *g, const GameInput *input)
 {
     GameInput neutral = {0,0,0,0,0};
