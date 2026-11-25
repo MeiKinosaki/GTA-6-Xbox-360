@@ -91,6 +91,7 @@ void game_init(GameState *g)
     g->player.x = 0; g->player.z = 0;
     g->player.vx = 0; g->player.vz = 0; g->player.vehicle_index = -1;
     g->vehicle_count = 2; g->obstacle_count = 0; g->pedestrian_count = 2; g->traffic_count = 2; g->traffic_light_count = 1; g->simulation_ticks = 0;
+    g->road_count = 0; g->building_count = 0;
     g->money = 0; g->health = 100; g->armor = 0; g->wanted_level = 0; g->wanted_ticks = 0; g->current_mission = 0;
     g->camera.x = 0; g->camera.z = 0; g->camera.target_x = 0; g->camera.target_z = 0;
     for (i = 0; i < GAME_MAX_VEHICLES; ++i) {
@@ -133,6 +134,24 @@ void game_init(GameState *g)
     g->traffic[1].speed = 20; g->traffic[1].direction = -1;
     g->traffic[1].min_x = 9000; g->traffic[1].max_x = 15000;
     g->traffic[1].turn_direction = -1; g->traffic[1].axis = 0; g->traffic[1].active = 1;
+    {
+        const GameRoad r[] = {
+            {-30000, -10000, 30000, -10000, 6000, 0},
+            {-30000, 10000, 30000, 10000, 6000, 0},
+            {-10000, -30000, -10000, 30000, 6000, 1},
+            {10000, -30000, 10000, 30000, 6000, 1}
+        };
+        const GameBuilding b[] = {
+            {-20000, -20000, 7000, 7000, 12000, 1},
+            {20000, -20000, 7000, 7000, 18000, 1},
+            {-20000, 20000, 7000, 7000, 9000, 1},
+            {20000, 20000, 7000, 7000, 15000, 1}
+        };
+        for (i = 0; i < 4; ++i) {
+            (void)game_add_road(g, &r[i]);
+            (void)game_add_building(g, &b[i]);
+        }
+    }
     g->traffic_lights[0].x = -12000; g->traffic_lights[0].stop_z = -6000;
     g->traffic_lights[0].phase_ticks = 0; g->traffic_lights[0].active = 1;
     for (i = 0; i < GAME_MAX_POLICE; ++i) {
@@ -157,6 +176,31 @@ int game_add_obstacle(GameState *g, const GameObstacle *o)
     g->obstacles[g->obstacle_count++] = *o;
     return 1;
 }
+
+int game_add_road(GameState *g, const GameRoad *r)
+{
+    if (!g || !r || g->road_count >= GAME_MAX_ROADS ||
+        r->width <= 0 || r->axis > 1 ||
+        (r->axis == 0 && (r->x1 >= r->x2 || r->z1 != r->z2)) ||
+        (r->axis == 1 && (r->z1 >= r->z2 || r->x1 != r->x2))) return 0;
+    g->roads[g->road_count++] = *r;
+    return 1;
+}
+int game_add_building(GameState *g, const GameBuilding *b)
+{
+    GameObstacle o;
+    if (!g || !b || !b->active || b->width <= 0 ||
+        b->depth <= 0 || b->height <= 0 ||
+        g->building_count >= GAME_MAX_BUILDINGS) return 0;
+    o.min_x = b->x - b->width / 2;
+    o.max_x = b->x + b->width / 2;
+    o.min_z = b->z - b->depth / 2;
+    o.max_z = b->z + b->depth / 2;
+    if (!game_add_obstacle(g, &o)) return 0;
+    g->buildings[g->building_count++] = *b;
+    return 1;
+}
+
 int game_interact(GameState *g)
 {
     uint32_t i;
@@ -416,7 +460,7 @@ int game_validate(const GameState *g)
     if (!g || g->wanted_level > 5 || g->health > 100 || g->armor > 100 || g->vehicle_count > GAME_MAX_VEHICLES || g->obstacle_count > GAME_MAX_OBSTACLES ||
         g->pedestrian_count > GAME_MAX_PEDESTRIANS ||
         g->traffic_count > GAME_MAX_TRAFFIC ||
-        g->traffic_light_count > GAME_MAX_TRAFFIC_LIGHTS) return 0;
+        g->traffic_light_count > GAME_MAX_TRAFFIC_LIGHTS || g->road_count > GAME_MAX_ROADS || g->building_count > GAME_MAX_BUILDINGS) return 0;
     if (g->player.x < g->min_x || g->player.x > g->max_x ||
         g->player.z < g->min_z || g->player.z > g->max_z) return 0;
     if (g->player.vehicle_index >= (int8_t)g->vehicle_count) return 0;
@@ -439,6 +483,10 @@ int game_validate(const GameState *g)
     for (i = 0; i < g->traffic_light_count; ++i) {
         if (g->traffic_lights[i].phase_ticks >= 240u) return 0;
     }
+    for (i = 0; i < g->road_count; ++i)
+        if (g->roads[i].width <= 0 || g->roads[i].axis > 1) return 0;
+    for (i = 0; i < g->building_count; ++i)
+        if (g->buildings[i].width <= 0 || g->buildings[i].depth <= 0 || g->buildings[i].height <= 0) return 0;
     for (i = 0; i < GAME_MAX_POLICE; ++i)
         if (g->police[i].active && g->police[i].speed <= 0) return 0;
     for (i = 0; i < GAME_MAX_MISSIONS; ++i)
