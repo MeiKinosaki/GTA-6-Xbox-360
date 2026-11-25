@@ -10,6 +10,28 @@
 #define VEHICLE_HALF_SIZE 650
 #define CAMERA_SMOOTH_DIVISOR 4
 
+static void emit_audio(GameState *g, uint8_t type, int32_t x, int32_t z)
+{
+    uint8_t slot;
+    if (g->audio_count >= GAME_AUDIO_QUEUE_CAPACITY) {
+        g->audio_read = (uint8_t)((g->audio_read + 1u) % GAME_AUDIO_QUEUE_CAPACITY);
+        --g->audio_count;
+    }
+    slot = g->audio_write;
+    g->audio_events[slot].type = type;
+    g->audio_events[slot].x = x;
+    g->audio_events[slot].z = z;
+    g->audio_write = (uint8_t)((g->audio_write + 1u) % GAME_AUDIO_QUEUE_CAPACITY);
+    ++g->audio_count;
+}
+int game_pop_audio_event(GameState *g, GameAudioEvent *event)
+{
+    if (!g || !event || g->audio_count == 0) return 0;
+    *event = g->audio_events[g->audio_read];
+    g->audio_read = (uint8_t)((g->audio_read + 1u) % GAME_AUDIO_QUEUE_CAPACITY);
+    --g->audio_count;
+    return 1;
+}
 static int32_t clamp_i32(int32_t v, int32_t lo, int32_t hi)
 { return v < lo ? lo : (v > hi ? hi : v); }
 static int32_t approach_zero(int32_t v, int32_t amount)
@@ -91,7 +113,7 @@ void game_init(GameState *g)
     g->player.x = 0; g->player.z = 0;
     g->player.vx = 0; g->player.vz = 0; g->player.vehicle_index = -1;
     g->vehicle_count = 2; g->obstacle_count = 0; g->pedestrian_count = 2; g->traffic_count = 2; g->traffic_light_count = 1; g->simulation_ticks = 0;
-    g->road_count = 0; g->building_count = 0;
+    g->road_count = 0; g->building_count = 0; g->audio_read = 0; g->audio_write = 0; g->audio_count = 0;
     g->money = 0; g->health = 100; g->armor = 0; g->wanted_level = 0; g->wanted_ticks = 0; g->current_mission = 0;
     g->camera.x = 0; g->camera.z = 0; g->camera.target_x = 0; g->camera.target_z = 0;
     for (i = 0; i < GAME_MAX_VEHICLES; ++i) {
@@ -210,6 +232,7 @@ int game_interact(GameState *g)
     if (g->player.vehicle_index >= 0) {
         GameVehicle *v = &g->vehicles[(uint8_t)g->player.vehicle_index];
         v->occupied = 0; g->player.vehicle_index = -1;
+        emit_audio(g, GAME_AUDIO_VEHICLE_EXIT, v->x, v->z);
         g->player.x = clamp_i32(v->x + 1200, g->min_x + PLAYER_HALF_SIZE, g->max_x - PLAYER_HALF_SIZE);
         g->player.z = v->z; g->player.vx = 0; g->player.vz = 0;
         return 1;
@@ -224,6 +247,7 @@ int game_interact(GameState *g)
     g->player.vehicle_index = (int8_t)best;
     g->player.vx = 0; g->player.vz = 0;
     g->vehicles[(uint8_t)best].occupied = 1;
+    emit_audio(g, GAME_AUDIO_VEHICLE_ENTER, g->vehicles[(uint8_t)best].x, g->vehicles[(uint8_t)best].z);
     return 1;
 }
 static int pedestrian_path_blocked(const GameState *g, const GamePedestrian *p, int32_t next_z)
@@ -381,6 +405,7 @@ int game_raise_wanted(GameState *g, uint8_t stars)
     if (g->wanted_level + stars > 5) g->wanted_level = 5;
     else g->wanted_level = (uint8_t)(g->wanted_level + stars);
     g->wanted_ticks = 0;
+    emit_audio(g, GAME_AUDIO_WANTED_RAISED, g->player.x, g->player.z);
     for (i = 0; i < GAME_MAX_POLICE && i < g->wanted_level; ++i) {
         if (!g->police[i].active) {
             g->police[i].x = g->player.x + (int32_t)(i + 1u) * 6000;
@@ -402,6 +427,7 @@ int game_complete_mission(GameState *g)
     dz = (int64_t)g->player.z - m->target_z;
     if (dx * dx + dz * dz > (int64_t)m->radius * m->radius) return 0;
     m->active = 0; m->completed = 1;
+    emit_audio(g, GAME_AUDIO_MISSION_COMPLETE, g->player.x, g->player.z);
     if (g->money <= INT32_MAX - m->reward) g->money += m->reward;
     else g->money = INT32_MAX;
     return 1;
@@ -471,7 +497,7 @@ void game_tick(GameState *g, const GameInput *input)
 int game_validate(const GameState *g)
 {
     uint32_t i;
-    if (!g || g->wanted_level > 5 || g->health > 100 || g->armor > 100 || g->vehicle_count > GAME_MAX_VEHICLES || g->obstacle_count > GAME_MAX_OBSTACLES ||
+    if (!g || g->audio_count > GAME_AUDIO_QUEUE_CAPACITY || g->audio_read >= GAME_AUDIO_QUEUE_CAPACITY || g->audio_write >= GAME_AUDIO_QUEUE_CAPACITY || g->wanted_level > 5 || g->health > 100 || g->armor > 100 || g->vehicle_count > GAME_MAX_VEHICLES || g->obstacle_count > GAME_MAX_OBSTACLES ||
         g->pedestrian_count > GAME_MAX_PEDESTRIANS ||
         g->traffic_count > GAME_MAX_TRAFFIC ||
         g->traffic_light_count > GAME_MAX_TRAFFIC_LIGHTS || g->road_count > GAME_MAX_ROADS || g->building_count > GAME_MAX_BUILDINGS) return 0;
