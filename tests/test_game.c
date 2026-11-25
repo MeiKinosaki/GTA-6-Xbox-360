@@ -127,6 +127,8 @@ static void test_traffic_avoids_adjacent_lane_overlap(void)
     int32_t original_z;
     game_init(&game);
     game.traffic[1].x = game.traffic[0].x + 500;
+    game.traffic[1].min_x = game.traffic[1].x - 3000;
+    game.traffic[1].max_x = game.traffic[1].x + 3000;
     game.traffic[1].z = game.traffic[0].z + game.traffic[0].speed + 500;
     game.traffic[1].min_z = -20000;
     game.traffic[1].max_z = 20000;
