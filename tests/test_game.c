@@ -283,9 +283,24 @@ static void test_city_block_roads_and_buildings(void)
     assert(game_validate(&game));
 }
 
+
+static void test_gamepad_deadzone_and_button_mapping(void)
+{
+    GamePadState pad = {7000, -12000, GAMEPAD_A | GAMEPAD_DPAD_RIGHT};
+    GameInput in = game_input_from_pad(&pad);
+    assert(!in.left);
+    assert(in.backward);
+    assert(in.right);
+    assert(in.interact_pressed);
+    pad.left_x = -16000; pad.left_y = 0; pad.buttons = 0;
+    in = game_input_from_pad(&pad);
+    assert(in.left && !in.right && !in.forward && !in.backward);
+}
+
 int main(void)
 {
     test_initial_state();
+    test_gamepad_deadzone_and_button_mapping();
     test_city_block_roads_and_buildings();
     test_mission_objective_and_reward();
     test_wanted_level_spawns_police_response();
@@ -305,6 +320,6 @@ int main(void)
     test_traffic_obeys_red_and_green_light_phases();
     test_traffic_avoids_adjacent_lane_overlap();
     test_traffic_yields_to_player_and_parked_vehicles();
-    puts("Gameplay core tests: 20/20 passed");
+    puts("Gameplay core tests: 21/21 passed");
     return 0;
 }
