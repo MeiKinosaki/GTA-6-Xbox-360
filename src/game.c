@@ -96,6 +96,56 @@ void game_apply_damage(GameState *g, uint16_t damage)
     }
 }
 
+
+size_t game_build_render_list(const GameState *g, GameRenderItem *items, size_t capacity)
+{
+    size_t n = 0;
+    uint32_t i;
+    if (!g || !items || capacity == 0) return 0;
+#define ADD_RENDER(kind, px, pz, ph, pw, pd) do { \
+    if (n < capacity) { items[n].type=(kind); items[n].x=(px)-g->camera.x; \
+        items[n].z=(pz)-g->camera.z; items[n].height=(ph); \
+        items[n].width=(pw); items[n].depth=(pd); ++n; } \
+} while (0)
+    for (i=0;i<g->road_count && n<capacity;++i) {
+        const GameRoad *r=&g->roads[i];
+        ADD_RENDER(GAME_RENDER_ROAD,(r->x1+r->x2)/2,(r->z1+r->z2)/2,0,
+                   r->axis==0?r->x2-r->x1:r->width,
+                   r->axis==1?r->z2-r->z1:r->width);
+    }
+    for (i=0;i<g->building_count && n<capacity;++i) {
+        const GameBuilding *b=&g->buildings[i];
+        ADD_RENDER(GAME_RENDER_BUILDING,b->x,b->z,b->height,b->width,b->depth);
+    }
+    if (g->player.vehicle_index<0 && n<capacity)
+        ADD_RENDER(GAME_RENDER_PLAYER,g->player.x,g->player.z,0,500,500);
+    for (i=0;i<g->vehicle_count && n<capacity;++i)
+        ADD_RENDER(GAME_RENDER_VEHICLE,g->vehicles[i].x,g->vehicles[i].z,0,1300,2600);
+    for (i=0;i<g->pedestrian_count && n<capacity;++i)
+        if (g->pedestrians[i].active) ADD_RENDER(GAME_RENDER_PEDESTRIAN,g->pedestrians[i].x,g->pedestrians[i].z,1700,400,400);
+    for (i=0;i<g->traffic_count && n<capacity;++i)
+        if (g->traffic[i].active) ADD_RENDER(GAME_RENDER_TRAFFIC,g->traffic[i].x,g->traffic[i].z,0,1300,2600);
+    for (i=0;i<GAME_MAX_POLICE && n<capacity;++i)
+        if (g->police[i].active) ADD_RENDER(GAME_RENDER_POLICE,g->police[i].x,g->police[i].z,0,1300,2600);
+#undef ADD_RENDER
+    return n;
+}
+void game_get_hud_state(const GameState *g, GameHudState *hud)
+{
+    uint8_t i;
+    if (!g || !hud) return;
+    hud->health=g->health; hud->armor=g->armor;
+    hud->wanted_level=g->wanted_level; hud->money=g->money;
+    hud->mission_id=0; hud->mission_active=0;
+    for (i=0;i<GAME_MAX_MISSIONS;++i) {
+        if (g->missions[i].active) {
+            hud->mission_id=g->missions[i].id;
+            hud->mission_active=1;
+            break;
+        }
+    }
+}
+
 static int32_t clamp_i32(int32_t v, int32_t lo, int32_t hi)
 { return v < lo ? lo : (v > hi ? hi : v); }
 static int32_t approach_zero(int32_t v, int32_t amount)
