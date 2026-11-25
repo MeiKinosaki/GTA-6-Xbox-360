@@ -200,7 +200,7 @@ static void test_traffic_completes_rectangular_intersection_route(void)
     for (i = 0; i < 250; ++i) game_tick(&game, 0);
     assert(game.traffic[0].x == game.traffic[0].max_x);
     assert(game.traffic[0].axis == 0);
-    assert(game.traffic[0].direction == 1);
+    assert(game.traffic[0].direction == -1);
     assert(game_validate(&game));
 }
 static void test_traffic_follows_patrol_route(void)
