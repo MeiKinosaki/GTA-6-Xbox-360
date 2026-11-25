@@ -315,9 +315,43 @@ static void test_gameplay_audio_event_queue(void)
     assert(game_validate(&game));
 }
 
+
+static void test_save_load_snapshot_roundtrip_and_corruption(void)
+{
+    GameState original, restored;
+    unsigned char buffer[sizeof(GameSaveHeader) + sizeof(GameState)];
+    game_init(&original);
+    original.money = 12345;
+    original.player.x = 4321;
+    assert(game_save_snapshot(&original, buffer, sizeof(buffer)));
+    game_init(&restored);
+    assert(game_load_snapshot(&restored, buffer, sizeof(buffer)));
+    assert(restored.money == 12345);
+    assert(restored.player.x == 4321);
+    buffer[sizeof(GameSaveHeader) + 5] ^= 0x40u;
+    assert(!game_load_snapshot(&restored, buffer, sizeof(buffer)));
+    assert(restored.money == 12345);
+}
+static void test_damage_uses_armor_then_health(void)
+{
+    GameState game;
+    game_init(&game);
+    game.armor = 30;
+    game_apply_damage(&game, 45);
+    assert(game.armor == 0);
+    assert(game.health == 85);
+    game_apply_damage(&game, 200);
+    assert(game.health == 0);
+    game_apply_damage(&game, 10);
+    assert(game.health == 0);
+    assert(game_validate(&game));
+}
+
 int main(void)
 {
     test_initial_state();
+    test_save_load_snapshot_roundtrip_and_corruption();
+    test_damage_uses_armor_then_health();
     test_gameplay_audio_event_queue();
     test_gamepad_deadzone_and_button_mapping();
     test_city_block_roads_and_buildings();
@@ -339,6 +373,6 @@ int main(void)
     test_traffic_obeys_red_and_green_light_phases();
     test_traffic_avoids_adjacent_lane_overlap();
     test_traffic_yields_to_player_and_parked_vehicles();
-    puts("Gameplay core tests: 22/22 passed");
+    puts("Gameplay core tests: 24/24 passed");
     return 0;
 }
