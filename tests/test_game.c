@@ -180,9 +180,27 @@ static void test_traffic_changes_lane_at_route_endpoint(void)
     original_x = game.traffic[0].x;
     game_tick(&game, 0);
     assert(game.traffic[0].z == game.traffic[0].max_z);
-    assert(game.traffic[0].x != original_x);
-    assert(game.traffic[0].x >= game.traffic[0].min_x);
+    assert(game.traffic[0].x == original_x);
+    assert(game.traffic[0].axis == 1);
+    game_tick(&game, 0);
+    assert(game.traffic[0].x > original_x);
     assert(game.traffic[0].x <= game.traffic[0].max_x);
+    assert(game_validate(&game));
+}
+static void test_traffic_completes_rectangular_intersection_route(void)
+{
+    GameState game;
+    uint32_t i;
+    game_init(&game);
+    game.traffic_count = 1;
+    game.traffic[0].z = game.traffic[0].max_z - game.traffic[0].speed;
+    game.traffic[0].direction = 1;
+    game_tick(&game, 0);
+    assert(game.traffic[0].axis == 1);
+    for (i = 0; i < 130; ++i) game_tick(&game, 0);
+    assert(game.traffic[0].x == game.traffic[0].max_x);
+    assert(game.traffic[0].axis == 0);
+    assert(game.traffic[0].direction == 1);
     assert(game_validate(&game));
 }
 static void test_traffic_follows_patrol_route(void)
@@ -242,9 +260,10 @@ int main(void)
     test_pedestrian_avoids_blocked_patrol_path();
     test_traffic_follows_patrol_route();
     test_traffic_changes_lane_at_route_endpoint();
+    test_traffic_completes_rectangular_intersection_route();
     test_traffic_obeys_red_and_green_light_phases();
     test_traffic_avoids_adjacent_lane_overlap();
     test_traffic_yields_to_player_and_parked_vehicles();
-    puts("Gameplay core tests: 16/16 passed");
+    puts("Gameplay core tests: 17/17 passed");
     return 0;
 }
