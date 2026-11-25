@@ -24,6 +24,20 @@ static void test_player_movement_and_friction(void)
     assert(game.player.vz < 55);
     assert(game_validate(&game));
 }
+static void test_diagonal_movement_is_normalized(void)
+{
+    GameState straight, diagonal;
+    GameInput forward = {1,0,0,0,0};
+    GameInput diagonal_input = {1,0,0,1,0};
+    game_init(&straight);
+    game_init(&diagonal);
+    game_tick(&straight, &forward);
+    game_tick(&diagonal, &diagonal_input);
+    assert(diagonal.player.vz < straight.player.vz);
+    assert(diagonal.player.vx < straight.player.vz);
+    assert(diagonal.player.vx == diagonal.player.vz);
+    assert(game_validate(&diagonal));
+}
 static void test_world_boundaries(void)
 {
     GameState game;
@@ -215,6 +229,7 @@ int main(void)
 {
     test_initial_state();
     test_player_movement_and_friction();
+    test_diagonal_movement_is_normalized();
     test_world_boundaries();
     test_enter_drive_and_exit_vehicle();
     test_cannot_enter_distant_or_occupied_vehicle();
@@ -228,6 +243,6 @@ int main(void)
     test_traffic_obeys_red_and_green_light_phases();
     test_traffic_avoids_adjacent_lane_overlap();
     test_traffic_yields_to_player_and_parked_vehicles();
-    puts("Gameplay core tests: 15/15 passed");
+    puts("Gameplay core tests: 16/16 passed");
     return 0;
 }
