@@ -197,7 +197,9 @@ static int traffic_path_blocked(const GameState *g, const GameTrafficVehicle *v,
     for (i = 0; i < g->traffic_count; ++i) {
         const GameTrafficVehicle *other = &g->traffic[i];
         if (other == v || !other->active) continue;
-        if (v->x == other->x && next_z + VEHICLE_HALF_SIZE > other->z - VEHICLE_HALF_SIZE &&
+        if (v->x + VEHICLE_HALF_SIZE > other->x - VEHICLE_HALF_SIZE &&
+            v->x - VEHICLE_HALF_SIZE < other->x + VEHICLE_HALF_SIZE &&
+            next_z + VEHICLE_HALF_SIZE > other->z - VEHICLE_HALF_SIZE &&
             next_z - VEHICLE_HALF_SIZE < other->z + VEHICLE_HALF_SIZE) return 1;
     }
     if (v->x + VEHICLE_HALF_SIZE > g->player.x - PLAYER_HALF_SIZE &&
