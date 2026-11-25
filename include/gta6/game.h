@@ -57,10 +57,11 @@ typedef struct {
     uint32_t simulation_ticks;
 } GameState;
 typedef struct {
-    uint8_t forward, backward, left, right, interact_pressed;
+    uint8_t forward, backward, left, right, interact_pressed, brake;
 } GameInput;
 typedef struct { int16_t left_x, left_y; uint16_t buttons; } GamePadState;
 #define GAMEPAD_A 0x1000u
+#define GAMEPAD_X 0x4000u
 #define GAMEPAD_DPAD_UP 0x0001u
 #define GAMEPAD_DPAD_DOWN 0x0002u
 #define GAMEPAD_DPAD_LEFT 0x0004u
