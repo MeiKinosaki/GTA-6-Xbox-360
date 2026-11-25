@@ -39,6 +39,37 @@ jobs:
       - name: Check out XSDK
         run: git clone --depth 1 https://github.com/xenosworks/xsdk.git "$HOME/xsdk"
 
+      - name: Pre-fetch verified GNU toolchain sources from mirrors
+        run: |
+          set -euo pipefail
+          SRC="$HOME/xsdk-gcc-work/src"
+          mkdir -p "$SRC"
+          fetch_verified() {
+            local archive="$1" expected="$2"
+            shift 2
+            for url in "$@"; do
+              echo "Trying $url"
+              if curl --connect-timeout 20 --max-time 180 --retry 2 --retry-delay 2 -fLsS "$url" -o "$SRC/$archive.tmp"; then
+                if echo "$expected  $SRC/$archive.tmp" | sha256sum -c --quiet; then
+                  mv "$SRC/$archive.tmp" "$SRC/$archive"
+                  return 0
+                fi
+                echo "Checksum mismatch from $url" >&2
+                rm -f "$SRC/$archive.tmp"
+              fi
+            done
+            echo "Unable to fetch verified source: $archive" >&2
+            return 1
+          }
+          fetch_verified binutils-2.47.tar.xz 154ab23b60070e8f27013c22977f1129425d67d1e8acd6e13010e617811e4cff \
+            https://mirrors.kernel.org/gnu/binutils/binutils-2.47.tar.xz \
+            https://ftp.osuosl.org/pub/gnu/binutils/binutils-2.47.tar.xz
+          fetch_verified gcc-15.3.0.tar.xz fa59c1beef8995f27c4d71c1df227587189315d3e6faff1bb4306e61b0c530eb \
+            https://mirrors.kernel.org/gnu/gcc/gcc-15.3.0/gcc-15.3.0.tar.xz \
+            https://ftp.osuosl.org/pub/gnu/gcc/gcc-15.3.0/gcc-15.3.0.tar.xz
+          fetch_verified newlib-4.6.0.20260123.tar.gz 6ff27e3bf022666f43f7802255be680eeff722ac181b1725d21e2e8318604ee3 \
+            https://sourceware.org/pub/newlib/newlib-4.6.0.20260123.tar.gz
+
       - name: Build XSDK PowerPC toolchain
         run: |
           cd "$HOME/xsdk"
