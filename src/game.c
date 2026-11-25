@@ -114,14 +114,18 @@ void game_init(GameState *g)
         g->traffic[i].x = 0; g->traffic[i].z = 0;
         g->traffic[i].min_z = 0; g->traffic[i].max_z = 0;
         g->traffic[i].speed = 0; g->traffic[i].direction = 1;
-        g->traffic[i].active = 0;
+        g->traffic[i].min_x = -50000; g->traffic[i].max_x = 50000;
+        g->traffic[i].turn_direction = 1; g->traffic[i].active = 0;
     }
     g->traffic[0].x = -12000; g->traffic[0].z = -8000;
     g->traffic[0].min_z = -18000; g->traffic[0].max_z = 18000;
-    g->traffic[0].speed = 24; g->traffic[0].active = 1;
+    g->traffic[0].speed = 24; g->traffic[0].min_x = -15000;
+    g->traffic[0].max_x = -9000; g->traffic[0].turn_direction = 1; g->traffic[0].active = 1;
     g->traffic[1].x = 12000; g->traffic[1].z = 9000;
     g->traffic[1].min_z = -16000; g->traffic[1].max_z = 16000;
-    g->traffic[1].speed = 20; g->traffic[1].direction = -1; g->traffic[1].active = 1;
+    g->traffic[1].speed = 20; g->traffic[1].direction = -1;
+    g->traffic[1].min_x = 9000; g->traffic[1].max_x = 15000;
+    g->traffic[1].turn_direction = -1; g->traffic[1].active = 1;
     g->traffic_lights[0].x = -12000; g->traffic_lights[0].stop_z = -6000;
     g->traffic_lights[0].phase_ticks = 0; g->traffic_lights[0].active = 1;
     for (i = 1; i < GAME_MAX_TRAFFIC_LIGHTS; ++i) {
@@ -262,8 +266,19 @@ static void update_traffic(GameState *g)
         int32_t next_z;
         if (!v->active || v->speed <= 0 || v->min_z >= v->max_z) continue;
         next_z = v->z + v->speed * v->direction;
-        if (next_z >= v->max_z) { next_z = v->max_z; v->direction = -1; }
-        else if (next_z <= v->min_z) { next_z = v->min_z; v->direction = 1; }
+        if (next_z >= v->max_z) {
+            next_z = v->max_z;
+            v->direction = -1;
+            v->x += 2500 * v->turn_direction;
+            if (v->x >= v->max_x || v->x <= v->min_x)
+                v->turn_direction = (int8_t)-v->turn_direction;
+        } else if (next_z <= v->min_z) {
+            next_z = v->min_z;
+            v->direction = 1;
+            v->x += 2500 * v->turn_direction;
+            if (v->x >= v->max_x || v->x <= v->min_x)
+                v->turn_direction = (int8_t)-v->turn_direction;
+        }
         if (traffic_path_blocked(g, v, next_z) || traffic_light_blocks(g, v, next_z)) continue;
         v->z = next_z;
     }
@@ -313,7 +328,7 @@ int game_validate(const GameState *g)
     }
     for (i = 0; i < g->traffic_count; ++i) {
         const GameTrafficVehicle *v = &g->traffic[i];
-        if (v->active && (v->min_z > v->max_z || v->z < v->min_z || v->z > v->max_z || v->speed < 0)) return 0;
+        if (v->active && (v->min_z > v->max_z || v->z < v->min_z || v->z > v->max_z || v->speed < 0 || v->min_x > v->max_x || v->x < v->min_x || v->x > v->max_x)) return 0;
     }
     for (i = 0; i < g->traffic_light_count; ++i) {
         if (g->traffic_lights[i].phase_ticks >= 240u) return 0;
