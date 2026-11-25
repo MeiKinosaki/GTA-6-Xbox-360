@@ -141,7 +141,7 @@ static void test_traffic_obeys_red_and_green_light_phases(void)
     GameState game;
     int32_t original_z;
     game_init(&game);
-    game.traffic[0].z = -6700;
+    game.traffic[0].z = -6670;
     game.traffic[0].direction = 1;
     game.traffic_lights[0].phase_ticks = 120;
     original_z = game.traffic[0].z;
