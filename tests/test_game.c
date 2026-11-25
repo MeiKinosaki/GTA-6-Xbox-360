@@ -269,9 +269,24 @@ static void test_wanted_level_spawns_police_response(void)
     assert(game_validate(&game));
 }
 
+
+static void test_city_block_roads_and_buildings(void)
+{
+    GameState game;
+    game_init(&game);
+    assert(game.road_count == 4);
+    assert(game.building_count == 4);
+    assert(game.obstacle_count == 4);
+    assert(game.roads[0].axis == 0);
+    assert(game.roads[2].axis == 1);
+    assert(game.buildings[0].height > 0);
+    assert(game_validate(&game));
+}
+
 int main(void)
 {
     test_initial_state();
+    test_city_block_roads_and_buildings();
     test_mission_objective_and_reward();
     test_wanted_level_spawns_police_response();
     test_player_movement_and_friction();
@@ -290,6 +305,6 @@ int main(void)
     test_traffic_obeys_red_and_green_light_phases();
     test_traffic_avoids_adjacent_lane_overlap();
     test_traffic_yields_to_player_and_parked_vehicles();
-    puts("Gameplay core tests: 19/19 passed");
+    puts("Gameplay core tests: 20/20 passed");
     return 0;
 }
