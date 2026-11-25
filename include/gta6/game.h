@@ -11,7 +11,7 @@ typedef struct { int32_t x, z, vx, vz; uint8_t occupied; } GameVehicle;
 typedef struct { int32_t x, z, vx, vz; int8_t vehicle_index; } GamePlayer;
 typedef struct { int32_t x, z, target_x, target_z; } GameCamera;
 typedef struct { int32_t x, z, min_z, max_z, speed; int8_t direction; uint8_t active; } GamePedestrian;
-typedef struct { int32_t x, z, min_z, max_z, speed; int8_t direction; uint8_t active; } GameTrafficVehicle;
+typedef struct { int32_t x, z, min_z, max_z, speed, min_x, max_x; int8_t direction, turn_direction; uint8_t active; } GameTrafficVehicle;
 typedef struct { int32_t x, stop_z; uint16_t phase_ticks; uint8_t active; } GameTrafficLight;
 typedef struct {
     int32_t min_x, max_x, min_z, max_z;
