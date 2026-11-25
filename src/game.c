@@ -200,6 +200,18 @@ static int traffic_path_blocked(const GameState *g, const GameTrafficVehicle *v,
         if (v->x == other->x && next_z + VEHICLE_HALF_SIZE > other->z - VEHICLE_HALF_SIZE &&
             next_z - VEHICLE_HALF_SIZE < other->z + VEHICLE_HALF_SIZE) return 1;
     }
+    if (v->x + VEHICLE_HALF_SIZE > g->player.x - PLAYER_HALF_SIZE &&
+        v->x - VEHICLE_HALF_SIZE < g->player.x + PLAYER_HALF_SIZE &&
+        next_z + VEHICLE_HALF_SIZE > g->player.z - PLAYER_HALF_SIZE &&
+        next_z - VEHICLE_HALF_SIZE < g->player.z + PLAYER_HALF_SIZE) return 1;
+    for (i = 0; i < g->vehicle_count; ++i) {
+        const GameVehicle *parked = &g->vehicles[i];
+        if (parked->occupied) continue;
+        if (v->x + VEHICLE_HALF_SIZE > parked->x - VEHICLE_HALF_SIZE &&
+            v->x - VEHICLE_HALF_SIZE < parked->x + VEHICLE_HALF_SIZE &&
+            next_z + VEHICLE_HALF_SIZE > parked->z - VEHICLE_HALF_SIZE &&
+            next_z - VEHICLE_HALF_SIZE < parked->z + VEHICLE_HALF_SIZE) return 1;
+    }
     return 0;
 }
 static void update_traffic(GameState *g)
