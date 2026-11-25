@@ -136,6 +136,22 @@ static void test_traffic_avoids_adjacent_lane_overlap(void)
     assert(game.traffic[0].z == original_z);
     assert(game_validate(&game));
 }
+static void test_traffic_obeys_red_and_green_light_phases(void)
+{
+    GameState game;
+    int32_t original_z;
+    game_init(&game);
+    game.traffic[0].z = -6700;
+    game.traffic[0].direction = 1;
+    game.traffic_lights[0].phase_ticks = 120;
+    original_z = game.traffic[0].z;
+    game_tick(&game, 0);
+    assert(game.traffic[0].z == original_z);
+    game.traffic_lights[0].phase_ticks = 0;
+    game_tick(&game, 0);
+    assert(game.traffic[0].z > original_z);
+    assert(game_validate(&game));
+}
 static void test_traffic_follows_patrol_route(void)
 {
     GameState game;
@@ -191,8 +207,9 @@ int main(void)
     test_pedestrian_patrol_and_turnaround();
     test_pedestrian_avoids_blocked_patrol_path();
     test_traffic_follows_patrol_route();
+    test_traffic_obeys_red_and_green_light_phases();
     test_traffic_avoids_adjacent_lane_overlap();
     test_traffic_yields_to_player_and_parked_vehicles();
-    puts("Gameplay core tests: 13/13 passed");
+    puts("Gameplay core tests: 14/14 passed");
     return 0;
 }
