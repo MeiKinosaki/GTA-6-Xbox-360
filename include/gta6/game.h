@@ -10,6 +10,7 @@
 #define GAME_MAX_MISSIONS 4
 #define GAME_MAX_ROADS 8
 #define GAME_MAX_BUILDINGS 8
+#define GAME_AUDIO_QUEUE_CAPACITY 8
 typedef struct { int32_t min_x, max_x, min_z, max_z; } GameObstacle;
 typedef struct { int32_t x, z, vx, vz; uint8_t occupied; } GameVehicle;
 typedef struct { int32_t x, z, vx, vz; int8_t vehicle_index; } GamePlayer;
@@ -21,6 +22,8 @@ typedef struct { int32_t x1, z1, x2, z2, width; uint8_t axis; } GameRoad;
 typedef struct { int32_t x, z, width, depth, height; uint8_t active; } GameBuilding;
 typedef struct { int32_t x, z, speed; uint8_t active; } GamePoliceUnit;
 typedef struct { int32_t target_x, target_z, radius, reward; uint16_t id; uint8_t active, completed; } GameMission;
+typedef struct { uint8_t type; int32_t x, z; } GameAudioEvent;
+enum { GAME_AUDIO_VEHICLE_ENTER = 1, GAME_AUDIO_VEHICLE_EXIT, GAME_AUDIO_MISSION_COMPLETE, GAME_AUDIO_WANTED_RAISED };
 typedef struct {
     int32_t min_x, max_x, min_z, max_z;
     GamePlayer player;
@@ -33,6 +36,8 @@ typedef struct {
     GameBuilding buildings[GAME_MAX_BUILDINGS];
     GamePoliceUnit police[GAME_MAX_POLICE];
     GameMission missions[GAME_MAX_MISSIONS];
+    GameAudioEvent audio_events[GAME_AUDIO_QUEUE_CAPACITY];
+    uint8_t audio_read, audio_write, audio_count;
     int32_t money;
     uint16_t wanted_ticks;
     uint8_t health, armor, wanted_level, current_mission;
@@ -61,4 +66,5 @@ int game_validate(const GameState *game);
 int game_start_mission(GameState *game, uint16_t mission_id, int32_t target_x, int32_t target_z, int32_t radius, int32_t reward);
 int game_raise_wanted(GameState *game, uint8_t stars);
 int game_complete_mission(GameState *game);
+int game_pop_audio_event(GameState *game, GameAudioEvent *event);
 #endif
