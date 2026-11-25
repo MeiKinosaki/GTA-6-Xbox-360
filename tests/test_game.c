@@ -33,6 +33,8 @@ static void test_diagonal_movement_is_normalized(void)
     game_init(&diagonal);
     game_tick(&straight, &forward);
     game_tick(&diagonal, &diagonal_input);
+    assert(diagonal.player.vz > 0);
+    assert(diagonal.player.vx > 0);
     assert(diagonal.player.vz < straight.player.vz);
     assert(diagonal.player.vx < straight.player.vz);
     assert(diagonal.player.vx == diagonal.player.vz);
