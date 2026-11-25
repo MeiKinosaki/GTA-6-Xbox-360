@@ -297,9 +297,28 @@ static void test_gamepad_deadzone_and_button_mapping(void)
     assert(in.left && !in.right && !in.forward && !in.backward);
 }
 
+
+static void test_gameplay_audio_event_queue(void)
+{
+    GameState game;
+    GameAudioEvent event;
+    game_init(&game);
+    game.player.x = game.vehicles[0].x;
+    game.player.z = game.vehicles[0].z;
+    assert(game_interact(&game));
+    assert(game_pop_audio_event(&game, &event));
+    assert(event.type == GAME_AUDIO_VEHICLE_ENTER);
+    assert(game_raise_wanted(&game, 1));
+    assert(game_pop_audio_event(&game, &event));
+    assert(event.type == GAME_AUDIO_WANTED_RAISED);
+    assert(!game_pop_audio_event(&game, &event));
+    assert(game_validate(&game));
+}
+
 int main(void)
 {
     test_initial_state();
+    test_gameplay_audio_event_queue();
     test_gamepad_deadzone_and_button_mapping();
     test_city_block_roads_and_buildings();
     test_mission_objective_and_reward();
@@ -320,6 +339,6 @@ int main(void)
     test_traffic_obeys_red_and_green_light_phases();
     test_traffic_avoids_adjacent_lane_overlap();
     test_traffic_yields_to_player_and_parked_vehicles();
-    puts("Gameplay core tests: 21/21 passed");
+    puts("Gameplay core tests: 22/22 passed");
     return 0;
 }
